@@ -25,6 +25,7 @@ model ag_empresas {
   financeiro     ag_financeiro[]
   socias         ag_socias[]
   estoque        ag_estoque[]
+  configuracoes  ag_configuracoes[]
 }
 
 model ag_usuarios {
@@ -213,4 +214,14 @@ model ag_servico_comissao {
   servico          ag_servicos      @relation(fields: [servico_id], references: [id])
 
   @@unique([profissional_id, servico_id])
+}
+
+model ag_configuracoes {
+  id         String   @id @default(uuid())
+  empresa_id String
+  chave      String
+  valor      String
+  empresa    ag_empresas @relation(fields: [empresa_id], references: [id])
+
+  @@unique([empresa_id, chave])
 }
