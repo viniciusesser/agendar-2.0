@@ -1,6 +1,9 @@
 import Fastify from 'fastify'
 import 'dotenv/config'
 import { authRoutes } from './routes/auth.routes'
+import { servicosRoutes } from './routes/agenda/servicos.routes'
+import { clientesRoutes } from './routes/agenda/clientes.routes'
+import { agendamentosRoutes } from './routes/agenda/agendamentos.routes'
 
 const app = Fastify({ logger: true })
 
@@ -9,6 +12,9 @@ app.get('/health', async () => {
 })
 
 app.register(authRoutes, { prefix: '/api/agendar' })
+app.register(servicosRoutes, { prefix: '/api/agendar' })
+app.register(clientesRoutes, { prefix: '/api/agendar' })
+app.register(agendamentosRoutes, { prefix: '/api/agendar' })
 
 const start = async () => {
   try {
