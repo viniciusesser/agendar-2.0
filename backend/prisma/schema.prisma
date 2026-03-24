@@ -8,20 +8,22 @@ datasource db {
 }
 
 model ag_empresas {
-  id             String             @id @default(uuid())
+  id             String               @id @default(uuid())
   nome           String
   telefone       String?
-  plano          String             @default("free")
+  plano          String               @default("free")
   plano_validade DateTime?
-  ativo          Boolean            @default(true)
+  ativo          Boolean              @default(true)
   deleted_at     DateTime?
-  criado_em      DateTime           @default(now())
+  criado_em      DateTime             @default(now())
   usuarios       ag_usuarios[]
   profissionais  ag_profissionais[]
   clientes       ag_clientes[]
   servicos       ag_servicos[]
   agendamentos   ag_agendamentos[]
   bloqueios      ag_bloqueios[]
+  financeiro     ag_financeiro[]
+  socias         ag_socias[]
 }
 
 model ag_usuarios {
@@ -38,18 +40,31 @@ model ag_usuarios {
 }
 
 model ag_profissionais {
-  id           String            @id @default(uuid())
-  empresa_id   String
-  usuario_id   String?
-  nome         String
-  cor          String            @default("#C4748A")
-  comissao_pct Decimal           @default(0)
-  ativo        Boolean           @default(true)
-  deleted_at   DateTime?
-  criado_em    DateTime          @default(now())
-  empresa      ag_empresas       @relation(fields: [empresa_id], references: [id])
-  agendamentos ag_agendamentos[]
-  bloqueios    ag_bloqueios[]
+  id                String                  @id @default(uuid())
+  empresa_id        String
+  usuario_id        String?
+  nome              String
+  cor               String                  @default("#C4748A")
+  comissao_pct      Decimal                 @default(0)
+  ativo             Boolean                 @default(true)
+  deleted_at        DateTime?
+  criado_em         DateTime                @default(now())
+  empresa           ag_empresas             @relation(fields: [empresa_id], references: [id])
+  agendamentos      ag_agendamentos[]
+  bloqueios         ag_bloqueios[]
+  socia             ag_socias?
+  financeiro_div    ag_financeiro_divisao[]
+}
+
+model ag_socias {
+  id               String           @id @default(uuid())
+  empresa_id       String
+  profissional_id  String           @unique
+  percentual       Decimal
+  ativo            Boolean          @default(true)
+  criado_em        DateTime         @default(now())
+  empresa          ag_empresas      @relation(fields: [empresa_id], references: [id])
+  profissional     ag_profissionais @relation(fields: [profissional_id], references: [id])
 }
 
 model ag_clientes {
@@ -64,6 +79,7 @@ model ag_clientes {
   criado_em    DateTime          @default(now())
   empresa      ag_empresas       @relation(fields: [empresa_id], references: [id])
   agendamentos ag_agendamentos[]
+  financeiro   ag_financeiro[]
 }
 
 model ag_servicos {
@@ -80,7 +96,7 @@ model ag_servicos {
 }
 
 model ag_agendamentos {
-  id               String           @id @default(uuid())
+  id               String                  @id @default(uuid())
   empresa_id       String
   cliente_id       String
   profissional_id  String
@@ -89,19 +105,20 @@ model ag_agendamentos {
   duracao_min      Int
   data_hora_fim    DateTime
   valor            Decimal
-  comissao_pct     Decimal          @default(0)
-  comissao_valor   Decimal          @default(0)
-  status           String           @default("agendado")
+  comissao_pct     Decimal                 @default(0)
+  comissao_valor   Decimal                 @default(0)
+  status           String                  @default("agendado")
   forma_pagamento  String?
   observacoes      String?
-  version          Int              @default(1)
+  version          Int                     @default(1)
   deleted_at       DateTime?
-  criado_em        DateTime         @default(now())
+  criado_em        DateTime                @default(now())
   finalizado_em    DateTime?
-  empresa          ag_empresas      @relation(fields: [empresa_id], references: [id])
-  cliente          ag_clientes      @relation(fields: [cliente_id], references: [id])
-  profissional     ag_profissionais @relation(fields: [profissional_id], references: [id])
-  servico          ag_servicos      @relation(fields: [servico_id], references: [id])
+  empresa          ag_empresas             @relation(fields: [empresa_id], references: [id])
+  cliente          ag_clientes             @relation(fields: [cliente_id], references: [id])
+  profissional     ag_profissionais        @relation(fields: [profissional_id], references: [id])
+  servico          ag_servicos             @relation(fields: [servico_id], references: [id])
+  financeiro       ag_financeiro[]
 }
 
 model ag_bloqueios {
@@ -113,5 +130,35 @@ model ag_bloqueios {
   motivo           String?
   criado_em        DateTime         @default(now())
   empresa          ag_empresas      @relation(fields: [empresa_id], references: [id])
+  profissional     ag_profissionais @relation(fields: [profissional_id], references: [id])
+}
+
+model ag_financeiro {
+  id               String                  @id @default(uuid())
+  empresa_id       String
+  tipo             String
+  origem           String
+  valor            Decimal
+  descricao        String?
+  forma_pagamento  String?
+  cliente_id       String?
+  agendamento_id   String?
+  data             DateTime                @default(now())
+  criado_em        DateTime                @default(now())
+  empresa          ag_empresas             @relation(fields: [empresa_id], references: [id])
+  cliente          ag_clientes?            @relation(fields: [cliente_id], references: [id])
+  agendamento      ag_agendamentos?        @relation(fields: [agendamento_id], references: [id])
+  divisoes         ag_financeiro_divisao[]
+}
+
+model ag_financeiro_divisao {
+  id               String           @id @default(uuid())
+  empresa_id       String
+  financeiro_id    String
+  profissional_id  String
+  tipo             String
+  percentual       Decimal
+  valor            Decimal
+  financeiro       ag_financeiro    @relation(fields: [financeiro_id], references: [id])
   profissional     ag_profissionais @relation(fields: [profissional_id], references: [id])
 }
