@@ -1,0 +1,31 @@
+# Variáveis de ambiente — NUNCA subir para o GitHub
+.env
+.env.local
+.env.development
+.env.production
+
+# Dependências instaladas — pesadas e regeneráveis
+node_modules/
+
+# Build gerado automaticamente
+.next/
+dist/
+build/
+
+# Prisma
+prisma/migrations/
+
+# Logs
+*.log
+npm-debug.log*
+
+# Sistema operacional
+.DS_Store
+Thumbs.db
+
+# VS Code
+.vscode/
+
+# PDFs e documentos — ficam fora do repositório
+*.pdf
+*.docx
