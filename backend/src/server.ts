@@ -6,6 +6,7 @@ import { clientesRoutes } from './routes/agenda/clientes.routes'
 import { agendamentosRoutes } from './routes/agenda/agendamentos.routes'
 import { financeiroRoutes } from './routes/agenda/financeiro.routes'
 import { estoqueRoutes } from './routes/agenda/estoque.routes'
+import { dashboardRoutes } from './routes/agenda/dashboard.routes'
 
 const app = Fastify({ logger: true })
 
@@ -19,6 +20,7 @@ app.register(clientesRoutes, { prefix: '/api/agendar' })
 app.register(agendamentosRoutes, { prefix: '/api/agendar' })
 app.register(financeiroRoutes, { prefix: '/api/agendar' })
 app.register(estoqueRoutes, { prefix: '/api/agendar' })
+app.register(dashboardRoutes, { prefix: '/api/agendar' })
 
 const start = async () => {
   try {
