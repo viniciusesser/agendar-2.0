@@ -1,0 +1,19 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model ag_empresas {
+  id             String    @id @default(uuid())
+  nome           String
+  telefone       String?
+  plano          String    @default("free")
+  plano_validade DateTime?
+  ativo          Boolean   @default(true)
+  deleted_at     DateTime?
+  criado_em      DateTime  @default(now())
+}
