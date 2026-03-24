@@ -24,6 +24,7 @@ model ag_empresas {
   bloqueios      ag_bloqueios[]
   financeiro     ag_financeiro[]
   socias         ag_socias[]
+  estoque        ag_estoque[]
 }
 
 model ag_usuarios {
@@ -161,4 +162,30 @@ model ag_financeiro_divisao {
   valor            Decimal
   financeiro       ag_financeiro    @relation(fields: [financeiro_id], references: [id])
   profissional     ag_profissionais @relation(fields: [profissional_id], references: [id])
+}
+
+model ag_estoque {
+  id              String                      @id @default(uuid())
+  empresa_id      String
+  nome            String
+  quantidade      Decimal                     @default(0)
+  unidade         String                      @default("un")
+  rendimento_est  Decimal?
+  estoque_minimo  Decimal                     @default(0)
+  deleted_at      DateTime?
+  criado_em       DateTime                    @default(now())
+  empresa         ag_empresas                 @relation(fields: [empresa_id], references: [id])
+  movimentacoes   ag_estoque_movimentacoes[]
+}
+
+model ag_estoque_movimentacoes {
+  id              String      @id @default(uuid())
+  empresa_id      String
+  produto_id      String
+  tipo            String
+  quantidade      Decimal
+  motivo          String?
+  agendamento_id  String?
+  data            DateTime    @default(now())
+  produto         ag_estoque  @relation(fields: [produto_id], references: [id])
 }
