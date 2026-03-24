@@ -55,6 +55,7 @@ model ag_profissionais {
   bloqueios         ag_bloqueios[]
   socia             ag_socias?
   financeiro_div    ag_financeiro_divisao[]
+  comissoes_servico ag_servico_comissao[]
 }
 
 model ag_socias {
@@ -94,6 +95,7 @@ model ag_servicos {
   criado_em    DateTime          @default(now())
   empresa      ag_empresas       @relation(fields: [empresa_id], references: [id])
   agendamentos ag_agendamentos[]
+  comissoes    ag_servico_comissao[]
 }
 
 model ag_agendamentos {
@@ -188,4 +190,27 @@ model ag_estoque_movimentacoes {
   agendamento_id  String?
   data            DateTime    @default(now())
   produto         ag_estoque  @relation(fields: [produto_id], references: [id])
+}
+
+model ag_convites {
+  id         String    @id @default(uuid())
+  empresa_id String
+  token      String    @unique
+  email      String?
+  perfil     String    @default("funcionario")
+  usado      Boolean   @default(false)
+  expira_em  DateTime
+  criado_em  DateTime  @default(now())
+}
+
+model ag_servico_comissao {
+  id               String           @id @default(uuid())
+  empresa_id       String
+  profissional_id  String
+  servico_id       String
+  comissao_pct     Decimal
+  profissional     ag_profissionais @relation(fields: [profissional_id], references: [id])
+  servico          ag_servicos      @relation(fields: [servico_id], references: [id])
+
+  @@unique([profissional_id, servico_id])
 }
