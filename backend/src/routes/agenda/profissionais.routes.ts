@@ -8,12 +8,14 @@ import {
   relatorioProfissional,
   gerarConvite,
   usarConvite,
-  excluirProfissional // IMPORTAÇÃO DA NOVA FUNÇÃO ADICIONADA AQUI
+  excluirProfissional
 } from '../../services/profissionais.service'
 
 export async function profissionaisRoutes(app: FastifyInstance) {
 
-  // Rota pública — usar convite (não precisa de token)
+  // ==========================================
+  // ROTAS PÚBLICAS (Não precisam de token de login)
+  // ==========================================
   app.post('/convites/usar', async (req: FastifyRequest, reply: FastifyReply) => {
     try {
       const { token, nome, email, senha } = req.body as any
@@ -37,75 +39,74 @@ export async function profissionaisRoutes(app: FastifyInstance) {
     }
   })
 
-  // Rotas autenticadas
-  app.addHook('preHandler', autenticar)
+  // ==========================================
+  // ROTAS AUTENTICADAS (Isoladas na Sala VIP)
+  // ==========================================
+  app.register(async (rotasProtegidas) => {
+    // Este segurança agora protege APENAS as rotas dentro deste bloco!
+    rotasProtegidas.addHook('preHandler', autenticar)
 
-  app.get('/profissionais', async (req: FastifyRequest, reply: FastifyReply) => {
-    const lista = await listarProfissionais(req.usuario.empresaId)
-    return reply.send({ success: true, data: lista })
-  })
-
-  // Nova rota: Criar Profissional diretamente (Atualizada para receber comissões e cor)
-  app.post('/profissionais', async (req: FastifyRequest, reply: FastifyReply) => {
-    const body = req.body as any
-    if (!body.nome) {
-      return reply.status(400).send({ success: false, error: { code: 'VALIDACAO', message: 'O nome é obrigatório.' } })
-    }
-    
-    const profissional = await criarProfissional(req.usuario.empresaId, { 
-      nome: body.nome,
-      cor: body.cor,
-      comissao_pct: body.comissao_pct,
-      comissao_produto_pct: body.comissao_produto_pct
+    rotasProtegidas.get('/profissionais', async (req: FastifyRequest, reply: FastifyReply) => {
+      const lista = await listarProfissionais(req.usuario.empresaId)
+      return reply.send({ success: true, data: lista })
     })
-    return reply.status(201).send({ success: true, data: profissional })
-  })
 
-  // Editar Profissional
-  app.put('/profissionais/:id', async (req: FastifyRequest, reply: FastifyReply) => {
-    const { id } = req.params as any
-    const prof = await editarProfissional(req.usuario.empresaId, id, req.body as any)
-    return reply.send({ success: true, data: prof })
-  })
-
-  // NOVA ROTA: Excluir Profissional (Soft Delete e Bloqueio de Acesso)
-  app.delete('/profissionais/:id', async (req: FastifyRequest, reply: FastifyReply) => {
-    const { id } = req.params as any
-    const prof = await excluirProfissional(req.usuario.empresaId, id)
-    return reply.send({ success: true, data: prof })
-  })
-
-  // Comissão Serviço
-  app.post('/profissionais/comissao-servico', async (req: FastifyRequest, reply: FastifyReply) => {
-    try {
+    rotasProtegidas.post('/profissionais', async (req: FastifyRequest, reply: FastifyReply) => {
       const body = req.body as any
-      if (!body.profissional_id || !body.servico_id || body.comissao_pct === undefined) {
-        return reply.status(400).send({ success: false, error: { code: 'VALIDACAO', message: 'profissional_id, servico_id e comissao_pct são obrigatórios.' } })
+      if (!body.nome) {
+        return reply.status(400).send({ success: false, error: { code: 'VALIDACAO', message: 'O nome é obrigatório.' } })
       }
-      const comissao = await definirComissaoServico(req.usuario.empresaId, body)
-      return reply.send({ success: true, data: comissao })
-    } catch (e: any) {
-      if (e.message === 'PROFISSIONAL_NAO_ENCONTRADO') return reply.status(404).send({ success: false, error: { code: 'NAO_ENCONTRADO', message: 'Profissional não encontrado.' } })
-      if (e.message === 'SERVICO_NAO_ENCONTRADO') return reply.status(404).send({ success: false, error: { code: 'NAO_ENCONTRADO', message: 'Serviço não encontrado.' } })
-      throw e
-    }
-  })
+      
+      const profissional = await criarProfissional(req.usuario.empresaId, { 
+        nome: body.nome,
+        cor: body.cor,
+        comissao_pct: body.comissao_pct,
+        comissao_produto_pct: body.comissao_produto_pct
+      })
+      return reply.status(201).send({ success: true, data: profissional })
+    })
 
-  // Relatório
-  app.get('/profissionais/:id/relatorio', async (req: FastifyRequest, reply: FastifyReply) => {
-    const { id } = req.params as any
-    const { mes, ano } = req.query as any
-    if (!mes || !ano) return reply.status(400).send({ success: false, error: { code: 'VALIDACAO', message: 'mes e ano são obrigatórios.' } })
-    
-    const relatorio = await relatorioProfissional(req.usuario.empresaId, id, Number(mes), Number(ano))
-    return reply.send({ success: true, data: relatorio })
-  })
+    rotasProtegidas.put('/profissionais/:id', async (req: FastifyRequest, reply: FastifyReply) => {
+      const { id } = req.params as any
+      const prof = await editarProfissional(req.usuario.empresaId, id, req.body as any)
+      return reply.send({ success: true, data: prof })
+    })
 
-  // Gerar convite — só dono e admin
-  app.post('/convites', { preHandler: exigirPerfil('dono', 'admin') }, async (req: FastifyRequest, reply: FastifyReply) => {
-    const { email, perfil } = req.body as any
-    const convite = await gerarConvite(req.usuario.empresaId, { email, perfil })
-    const link = `${process.env.APP_URL ?? 'http://localhost:3000'}/convite/${convite.token}`
-    return reply.status(201).send({ success: true, data: { ...convite, link } })
+    rotasProtegidas.delete('/profissionais/:id', async (req: FastifyRequest, reply: FastifyReply) => {
+      const { id } = req.params as any
+      const prof = await excluirProfissional(req.usuario.empresaId, id)
+      return reply.send({ success: true, data: prof })
+    })
+
+    rotasProtegidas.post('/profissionais/comissao-servico', async (req: FastifyRequest, reply: FastifyReply) => {
+      try {
+        const body = req.body as any
+        if (!body.profissional_id || !body.servico_id || body.comissao_pct === undefined) {
+          return reply.status(400).send({ success: false, error: { code: 'VALIDACAO', message: 'profissional_id, servico_id e comissao_pct são obrigatórios.' } })
+        }
+        const comissao = await definirComissaoServico(req.usuario.empresaId, body)
+        return reply.send({ success: true, data: comissao })
+      } catch (e: any) {
+        if (e.message === 'PROFISSIONAL_NAO_ENCONTRADO') return reply.status(404).send({ success: false, error: { code: 'NAO_ENCONTRADO', message: 'Profissional não encontrado.' } })
+        if (e.message === 'SERVICO_NAO_ENCONTRADO') return reply.status(404).send({ success: false, error: { code: 'NAO_ENCONTRADO', message: 'Serviço não encontrado.' } })
+        throw e
+      }
+    })
+
+    rotasProtegidas.get('/profissionais/:id/relatorio', async (req: FastifyRequest, reply: FastifyReply) => {
+      const { id } = req.params as any
+      const { mes, ano } = req.query as any
+      if (!mes || !ano) return reply.status(400).send({ success: false, error: { code: 'VALIDACAO', message: 'mes e ano são obrigatórios.' } })
+      
+      const relatorio = await relatorioProfissional(req.usuario.empresaId, id, Number(mes), Number(ano))
+      return reply.send({ success: true, data: relatorio })
+    })
+
+    rotasProtegidas.post('/convites', { preHandler: exigirPerfil('dono', 'admin') }, async (req: FastifyRequest, reply: FastifyReply) => {
+      const { email, perfil } = req.body as any
+      const convite = await gerarConvite(req.usuario.empresaId, { email, perfil })
+      const link = `${process.env.APP_URL ?? 'http://localhost:3000'}/convite/${convite.token}`
+      return reply.status(201).send({ success: true, data: { ...convite, link } })
+    })
   })
 }
