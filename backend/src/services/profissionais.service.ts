@@ -9,10 +9,10 @@ export async function listarProfissionais(empresaId: string) {
   })
 }
 
-export async function criarProfissional(empresaId: string, dados: { nome: string, cor?: string, comissao_pct?: number, comissao_produto_pct?: number }) {
+export async function criarProfissional(empresa_id: string, dados: { nome: string, cor?: string, comissao_pct?: number, comissao_produto_pct?: number }) {
   return prisma.ag_profissionais.create({
     data: {
-      empresa_id: empresaId,
+      empresa_id,
       nome: dados.nome,
       cor: dados.cor,
       comissao_pct: dados.comissao_pct ?? 0,
@@ -175,33 +175,45 @@ export async function usarConvite(token: string, dados: {
   return { token: tokenJwt, usuario: { id: usuario.id, nome: usuario.nome, email: usuario.email, perfil: usuario.perfil } }
 }
 
-// NOVA FUNÇÃO: Soft Delete do Profissional E Bloqueio de Acesso
+/**
+ * EXCLUIR PROFISSIONAL (REFORÇADO)
+ * Impede a exclusão de perfis 'dono' para evitar bloqueio total do sistema.
+ */
 export async function excluirProfissional(empresaId: string, profissionalId: string) {
+  // 1. Busca o profissional primeiro (removi o 'include' que dava erro)
   const prof = await prisma.ag_profissionais.findFirst({
     where: { id: profissionalId, empresa_id: empresaId, deleted_at: null },
   })
   
   if (!prof) throw new Error('NAO_ENCONTRADO')
 
-  // O $transaction garante que se uma atualização falhar, a outra é desfeita.
+  // 2. Se houver um usuário vinculado, buscamos o perfil dele manualmente
+  if (prof.usuario_id) {
+    const usuarioVincualdo = await prisma.ag_usuarios.findUnique({
+      where: { id: prof.usuario_id }
+    })
+
+    // 3. REGRA DE OURO: Se o perfil for 'dono', barra a exclusão
+    if (usuarioVincualdo?.perfil === 'dono') {
+      throw new Error('PROIBIDO_EXCLUIR_DONO')
+    }
+  }
+
   return prisma.$transaction(async (tx) => {
-    // 1. Remove o profissional da Agenda e da Equipe
-    const profissionalInativado = await tx.ag_profissionais.update({
+    // 4. Inativa o profissional (Soft Delete)
+    const inativado = await tx.ag_profissionais.update({
       where: { id: profissionalId },
       data: { deleted_at: new Date() },
     })
 
-    // 2. Se a pessoa tinha um login de acesso ao app, bloqueia o usuário também
-    if (profissionalInativado.usuario_id) {
-      // Usamos uma tentativa de update (updateMany) caso a tabela de usuários 
-      // não tenha o ID explícito ou para evitar erros se o usuário já tiver sido deletado
-      await tx.ag_usuarios.updateMany({
-        where: { id: profissionalInativado.usuario_id },
-        // Presumindo que sua tabela de usuários tenha o campo deleted_at ou ativo
+    // 5. Inativa o acesso do usuário também, se existir
+    if (prof.usuario_id) {
+      await tx.ag_usuarios.update({
+        where: { id: prof.usuario_id },
         data: { deleted_at: new Date() } 
       })
     }
 
-    return profissionalInativado;
+    return inativado
   })
 }

@@ -14,7 +14,7 @@ import {
 export async function profissionaisRoutes(app: FastifyInstance) {
 
   // ==========================================
-  // ROTAS PÚBLICAS (Não precisam de token de login)
+  // ROTAS PÚBLICAS
   // ==========================================
   app.post('/convites/usar', async (req: FastifyRequest, reply: FastifyReply) => {
     try {
@@ -40,10 +40,9 @@ export async function profissionaisRoutes(app: FastifyInstance) {
   })
 
   // ==========================================
-  // ROTAS AUTENTICADAS (Isoladas na Sala VIP)
+  // ROTAS AUTENTICADAS
   // ==========================================
   app.register(async (rotasProtegidas) => {
-    // Este segurança agora protege APENAS as rotas dentro deste bloco!
     rotasProtegidas.addHook('preHandler', autenticar)
 
     rotasProtegidas.get('/profissionais', async (req: FastifyRequest, reply: FastifyReply) => {
@@ -72,8 +71,18 @@ export async function profissionaisRoutes(app: FastifyInstance) {
       return reply.send({ success: true, data: prof })
     })
 
-    rotasProtegidas.delete('/profissionais/:id', async (req: FastifyRequest, reply: FastifyReply) => {
+    // === SEGURANÇA REFORÇADA AQUI ===
+    rotasProtegidas.delete('/profissionais/:id', { preHandler: exigirPerfil('dono') }, async (req: FastifyRequest, reply: FastifyReply) => {
       const { id } = req.params as any
+      
+      // Impede que o usuário logado exclua a si mesmo
+      if (id === req.usuario.userId) {
+        return reply.status(403).send({ 
+          success: false, 
+          error: { code: 'PROIBIDO', message: 'Você não pode excluir seu próprio perfil.' } 
+        })
+      }
+
       const prof = await excluirProfissional(req.usuario.empresaId, id)
       return reply.send({ success: true, data: prof })
     })
