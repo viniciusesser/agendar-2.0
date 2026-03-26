@@ -122,3 +122,34 @@ export async function login(email: string, senha: string) {
     },
   }
 }
+
+/**
+ * SERVIÇO: Alterar Senha
+ * Verifica a senha atual antes de gerar o hash da nova senha e salvar.
+ */
+export async function alterarSenha(userId: string, senhaAtual: string, novaSenha: string) {
+  // 1. Busca o usuário para pegar o hash atual
+  const usuario = await prisma.ag_usuarios.findUnique({
+    where: { id: userId }
+  })
+
+  if (!usuario) {
+    throw new Error('USUARIO_NAO_ENCONTRADO')
+  }
+
+  // 2. Compara a senha digitada como "atual" com a do banco
+  const senhaCorreta = await bcrypt.compare(senhaAtual, usuario.senha_hash)
+
+  if (!senhaCorreta) {
+    throw new Error('SENHA_ATUAL_INCORRETA')
+  }
+
+  // 3. Gera o novo hash para a nova senha
+  const nova_senha_hash = await bcrypt.hash(novaSenha, 10)
+
+  // 4. Atualiza no banco de dados
+  return prisma.ag_usuarios.update({
+    where: { id: userId },
+    data: { senha_hash: nova_senha_hash }
+  })
+}

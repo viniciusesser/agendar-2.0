@@ -1,18 +1,19 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { buscarProfissionais } from "@/services/profissionais.service";
-import { Users, Plus, Pencil, Link as LinkIcon, ArrowLeft, Loader2, Scissors, Package } from "lucide-react";
+import { Users, Plus, Pencil, Link as LinkIcon, ArrowLeft, Loader2, Scissors, Package, ShieldCheck, Lock } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
+import axios from "axios";
 import ModalProfissional from "@/components/ui/ModalProfissional";
 import ModalConvite from "@/components/ui/ModalConvite";
 import BottomNav from "@/components/ui/BottomNav";
 
-// Importação dos componentes do Design System 2.0
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
+import { Input } from "@/components/ui/Input";
 
 export default function EquipePage() {
   const { data: profissionais, isLoading } = useQuery({
@@ -23,6 +24,36 @@ export default function EquipePage() {
   const [modalAberto, setModalAberto] = useState(false);
   const [modalConviteAberto, setModalConviteAberto] = useState(false);
   const [profissionalEditando, setProfissionalEditando] = useState<any>(null);
+
+  // Estados para Troca de Senha
+  const [passForm, setPassForm] = useState({ senhaAtual: "", novaSenha: "", confirmarNovaSenha: "" });
+  const [passMsg, setPassMsg] = useState({ tipo: "", texto: "" });
+
+  const passwordMutation = useMutation({
+    mutationFn: (dados: any) => {
+      const token = localStorage.getItem('agendar_token');
+      return axios.put(`${process.env.NEXT_PUBLIC_API_URL}/auth/alterar-senha`, dados, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+    },
+    onSuccess: () => {
+      setPassMsg({ tipo: "sucesso", texto: "Senha alterada com sucesso!" });
+      setPassForm({ senhaAtual: "", novaSenha: "", confirmarNovaSenha: "" });
+    },
+    onError: (error: any) => {
+      setPassMsg({ tipo: "erro", texto: error.response?.data?.error?.message || "Erro ao alterar senha." });
+    }
+  });
+
+  const handlePasswordSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setPassMsg({ tipo: "", texto: "" });
+    if (passForm.novaSenha !== passForm.confirmarNovaSenha) {
+      setPassMsg({ tipo: "erro", texto: "As novas senhas não coincidem." });
+      return;
+    }
+    passwordMutation.mutate({ senhaAtual: passForm.senhaAtual, novaSenha: passForm.novaSenha });
+  };
 
   function abrirNovo() {
     setProfissionalEditando(null);
@@ -36,7 +67,6 @@ export default function EquipePage() {
 
   return (
     <div className="flex flex-col min-h-screen bg-bg-default antialiased">
-      {/* HEADER: Enterprise Standard - Padronizado */}
       <header className="sticky top-0 z-[900] bg-surface border-b border-border-default px-4 md:px-8 pt-10 pb-6 shadow-sm">
         <div className="flex items-center justify-between max-w-7xl mx-auto w-full">
           <div className="flex items-center gap-3">
@@ -53,96 +83,94 @@ export default function EquipePage() {
         </div>
       </header>
 
-      {/* LISTA DE PROFISSIONAIS */}
       <main className="flex-1 p-4 md:p-8 max-w-7xl mx-auto w-full animate-in fade-in slide-in-from-bottom-4 duration-500 pb-40">
-        {isLoading ? (
-          <div className="flex flex-col items-center justify-center py-20 text-primary-action gap-3">
-            <Loader2 className="animate-spin" size={32} />
-            <p className="text-body font-medium text-text-secondary">Sincronizando equipe...</p>
-          </div>
-        ) : (!profissionais || profissionais.length === 0) ? (
-          <div className="text-center py-20 bg-surface/50 rounded-xl border-2 border-dashed border-border-default max-w-2xl mx-auto">
-            <Users size={48} strokeWidth={1.5} className="mx-auto text-primary-action mb-4 opacity-40" />
-            <p className="text-text-secondary font-medium italic text-body">Nenhum profissional cadastrado.</p>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {profissionais.map((prof: any) => (
-              <Card 
-                key={prof.id} 
-                className="p-4 md:p-5 flex items-center justify-between group hover:border-primary-action/30 hover:shadow-md transition-all border-border-default h-full"
-              >
-                <div className="flex items-center gap-4 overflow-hidden">
-                  <div 
-                    className="w-12 h-12 rounded-full flex items-center justify-center text-on-primary font-bold text-lg shadow-sm border-2 border-surface shrink-0"
-                    style={{ backgroundColor: prof.cor || 'var(--color-primary-500)' }}
-                  >
-                    {prof.nome.charAt(0).toUpperCase()}
-                  </div>
-                  <div className="overflow-hidden pr-2">
-                    <h3 className="font-bold text-text-primary text-subtitle leading-tight truncate mb-1.5" title={prof.nome}>
-                      {prof.nome}
-                    </h3>
-                    
-                    <div className="flex flex-col gap-2">
-                      <Badge variant="success" className="text-xs font-bold uppercase bg-status-success/10 text-status-success border-0 px-2.5 py-1 w-max">
-                        <Scissors size={14} className="mr-1.5" strokeWidth={2.5} /> 
-                        <span className="font-black text-sm mr-1">{prof.comissao_pct || 0}%</span> SERV.
-                      </Badge>
-                      <Badge variant="warning" className="text-xs font-bold uppercase bg-status-warning/10 text-status-warning border-0 px-2.5 py-1 w-max">
-                        <Package size={14} className="mr-1.5" strokeWidth={2.5} /> 
-                        <span className="font-black text-sm mr-1">{prof.comissao_produto_pct || 0}%</span> PROD.
-                      </Badge>
+        
+        {/* LISTA DE INTEGRANTES */}
+        <div className="mb-12">
+          <h2 className="text-micro font-black uppercase tracking-widest text-text-secondary mb-4 ml-1">Time do Salão</h2>
+          {isLoading ? (
+            <div className="flex flex-col items-center py-10 text-primary-action gap-3">
+              <Loader2 className="animate-spin" size={32} />
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {profissionais?.map((prof: any) => (
+                <Card key={prof.id} className="p-4 flex items-center justify-between group border-border-default">
+                  <div className="flex items-center gap-4 overflow-hidden">
+                    <div 
+                      className="w-12 h-12 rounded-full flex items-center justify-center text-white font-bold text-lg"
+                      style={{ backgroundColor: prof.cor || '#FF2B5E' }}
+                    >
+                      {prof.nome.charAt(0).toUpperCase()}
+                    </div>
+                    <div>
+                      <h3 className="font-bold text-text-primary truncate">{prof.nome}</h3>
+                      <div className="flex gap-2 mt-1">
+                        <Badge variant="success" className="text-[10px] px-2 py-0">SERV: {prof.comissao_pct}%</Badge>
+                        <Badge variant="warning" className="text-[10px] px-2 py-0">PROD: {prof.comissao_produto_pct}%</Badge>
+                      </div>
                     </div>
                   </div>
-                </div>
+                  <Button variant="ghost" onClick={() => abrirEdicao(prof)} className="w-10 h-10 p-0">
+                    <Pencil size={18} strokeWidth={2.5} />
+                  </Button>
+                </Card>
+              ))}
+            </div>
+          )}
+        </div>
 
-                <Button 
-                  variant="ghost"
-                  onClick={() => abrirEdicao(prof)}
-                  className="w-14 h-14 p-0 rounded-md text-text-muted hover:text-primary-action hover:bg-primary-50 shrink-0 opacity-100 md:opacity-40 group-hover:opacity-100 transition-opacity"
-                  title="Editar Profissional"
-                >
-                  <Pencil size={18} strokeWidth={2.5} />
+        {/* SEÇÃO: MINHA SEGURANÇA (NOVA) */}
+        <div className="max-w-md">
+          <h2 className="text-micro font-black uppercase tracking-widest text-text-secondary mb-4 ml-1">Minha Segurança</h2>
+          <Card className="p-6 border-t-4 border-t-primary-action">
+             <form onSubmit={handlePasswordSubmit} className="space-y-4">
+                <Input 
+                  label="Senha Atual" 
+                  type="password" 
+                  value={passForm.senhaAtual} 
+                  onChange={e => setPassForm({...passForm, senhaAtual: e.target.value})}
+                  required 
+                />
+                <hr className="border-border-default opacity-50" />
+                <Input 
+                  label="Nova Senha" 
+                  type="password" 
+                  value={passForm.novaSenha} 
+                  onChange={e => setPassForm({...passForm, novaSenha: e.target.value})}
+                  required 
+                />
+                <Input 
+                  label="Confirmar Nova Senha" 
+                  type="password" 
+                  value={passForm.confirmarNovaSenha} 
+                  onChange={e => setPassForm({...passForm, confirmarNovaSenha: e.target.value})}
+                  required 
+                />
+
+                {passMsg.texto && (
+                  <div className={`p-3 rounded-lg text-[10px] font-bold uppercase ${
+                    passMsg.tipo === "sucesso" ? "bg-status-success/10 text-status-success" : "bg-status-error/10 text-status-error"
+                  }`}>
+                    {passMsg.texto}
+                  </div>
+                )}
+
+                <Button type="submit" fullWidth isLoading={passwordMutation.isPending}>
+                  <Lock size={16} className="mr-2" /> Atualizar Minha Senha
                 </Button>
-              </Card>
-            ))}
-          </div>
-        )}
+             </form>
+          </Card>
+        </div>
       </main>
 
-      {/* BOTÕES DE AÇÃO FLUTUANTES (FAB) */}
       <div className="fixed bottom-24 right-6 flex flex-col gap-3 z-[1001]">
-        {/* Botão de Convite (Fundo Branco, Ícone Cor) */}
-        <button 
-          onClick={() => setModalConviteAberto(true)} 
-          className="w-14 h-14 bg-primary-action text-white rounded-2xl shadow-lg flex items-center justify-center hover:scale-105 active:scale-95 transition-all"
-          title="Gerar link de convite"
-        >
-          <LinkIcon size={28} strokeWidth={2.5} />
-        </button>
-
-        {/* Botão de Cadastro (Fundo Cor, Ícone Branco) */}
-        <button 
-          onClick={abrirNovo} 
-          className="w-14 h-14 bg-primary-action text-white rounded-2xl shadow-lg flex items-center justify-center hover:scale-105 active:scale-95 transition-all"
-          title="Adicionar Profissional"
-        >
-          <Plus size={28} strokeWidth={3} className="text-white" />
-        </button>
+        <button onClick={() => setModalConviteAberto(true)} className="w-14 h-14 bg-primary-action text-white rounded-2xl shadow-lg flex items-center justify-center transition-all"><LinkIcon size={28} /></button>
+        <button onClick={abrirNovo} className="w-14 h-14 bg-primary-action text-white rounded-2xl shadow-lg flex items-center justify-center transition-all"><Plus size={28} /></button>
       </div>
 
-      {/* MODAIS */}
-      <ModalProfissional 
-        isOpen={modalAberto} 
-        onClose={() => setModalAberto(false)} 
-        profissional={profissionalEditando} 
-      />
-      <ModalConvite 
-        isOpen={modalConviteAberto} 
-        onClose={() => setModalConviteAberto(false)} 
-      />
-
+      <ModalProfissional isOpen={modalAberto} onClose={() => setModalAberto(false)} profissional={profissionalEditando} />
+      <ModalConvite isOpen={modalConviteAberto} onClose={() => setModalConviteAberto(false)} />
       <BottomNav />
     </div>
   );
