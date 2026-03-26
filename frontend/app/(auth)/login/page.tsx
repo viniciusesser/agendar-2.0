@@ -2,12 +2,12 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import Image from 'next/image' // IMPORTAÇÃO DO COMPONENTE DE IMAGEM DO NEXT.JS
 import { useAuthStore } from '@/store/auth.store'
 import { login } from '@/services/auth.service'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Card } from '@/components/ui/Card'
-import { Sparkles } from 'lucide-react'
 
 export default function LoginPage() {
   const router = useRouter()
@@ -27,7 +27,7 @@ export default function LoginPage() {
       // 1. Tenta o login no backend
       const dados = await login(email, senha)
       
-      // 2. Limpa resquícios de outras contas (como a da Emily) antes de entrar
+      // 2. Limpa resquícios de outras contas
       localStorage.clear()
 
       // 3. Salva no Store e no LocalStorage
@@ -35,8 +35,7 @@ export default function LoginPage() {
       localStorage.setItem('agendar_token', dados.token)
       localStorage.setItem('agendar_usuario', JSON.stringify(dados.usuario))
 
-      // 4. O PULO DO GATO: Redireciona para o DASHBOARD (ou /agenda)
-      // Nunca mande para '/', pois lá tem o redirecionador que te joga de volta pra cá!
+      // 4. Redireciona para o local correto
       router.push('/dashboard')
       
     } catch (err: any) {
@@ -53,13 +52,17 @@ export default function LoginPage() {
       
       <div className="w-full max-w-[400px] animate-in fade-in zoom-in duration-300">
         
-        <div className="text-center mb-8 md:mb-10">
-          <div className="flex items-center justify-center gap-2 mb-2">
-             <Sparkles className="text-primary-action w-8 h-8" />
-             <h1 className="text-4xl md:text-5xl font-black text-primary-action tracking-tighter italic drop-shadow-sm">
-                Agendar
-             </h1>
-          </div>
+        {/* === ÁREA DA LOGO ATUALIZADA === */}
+        <div className="text-center mb-8 md:mb-10 flex flex-col items-center">
+          {/* O componente Image do Next.js é super otimizado */}
+          <Image 
+             src="/logo.png" // Caminho relativo dentro da pasta public
+             alt="Logo Agendar" 
+             width={250} // Largura desejada em pixels
+             height={80} // Altura aproximada (o Next.js ajusta)
+             className="mb-2 drop-shadow-sm h-auto w-auto" // Mantém a proporção
+             priority // Carrega essa imagem com prioridade
+          />
           <p className="text-text-secondary text-body font-medium tracking-wide">
             Gestão para salões de beleza
           </p>
@@ -108,7 +111,6 @@ export default function LoginPage() {
 
         <p className="text-center mt-8 text-body text-text-secondary font-medium">
           Ainda não faz parte?{' '}
-          {/* Corrigido: Sua pasta se chama 'registro' e não 'cadastro' */}
           <a href="/registro" className="text-primary-action font-bold hover:underline transition-colors">
             Crie sua conta grátis
           </a>
