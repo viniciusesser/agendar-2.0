@@ -14,9 +14,9 @@ import { configuracoesRoutes } from './routes/agenda/configuracoes.routes'
 
 const app = Fastify({ logger: true })
 
-// Configuração do CORS atualizada para permitir métodos de edição (PUT)
+// Configuração do CORS atualizada para permitir o localhost e a Vercel
 app.register(cors, {
-  origin: 'http://localhost:3000', // Permite que o frontend acesse a API
+  origin: ['http://localhost:3000', 'https://agendar-2-0.vercel.app'], // <-- AQUI ESTÁ A MÁGICA
   credentials: true, // Fundamental para permitir o envio e recebimento de cookies (refresh token)
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'], // Métodos permitidos explicitamente
 })
