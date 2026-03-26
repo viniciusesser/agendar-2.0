@@ -33,8 +33,20 @@ export default function AceitarConvitePage({ params }: { params: Promise<{ token
       router.push('/');
     },
     onError: (error: any) => {
-      console.error("Erro no convite:", error);
-      alert(error.response?.data?.error?.message || "Link de convite inválido ou expirado.");
+      const codigoErro = error.response?.data?.error?.code;
+      const mensagemErro = error.response?.data?.error?.message;
+
+      if (codigoErro === 'EMAIL_JA_CADASTRADO') {
+        alert(
+          "Opa! Esse e-mail já possui um cadastro no Agendar 2.0.\n\n" +
+          "👉 Se você já tem uma conta, vá para a tela de Login.\n" +
+          "👉 Se você é nova aqui, tente usar outro e-mail pessoal."
+        );
+        // Opcional: Se quiser que o sistema jogue ela para o login automaticamente
+        // router.push('/login');
+      } else {
+        alert(mensagemErro || "Link de convite inválido ou expirado.");
+      }
     }
   });
 

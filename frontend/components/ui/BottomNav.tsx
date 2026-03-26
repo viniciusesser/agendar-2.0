@@ -8,7 +8,7 @@ export default function BottomNav() {
   const pathname = usePathname();
 
   const navItems = [
-    { href: "/", icon: Calendar, label: "Agenda" },
+    { href: "/agenda", icon: Calendar, label: "Agenda" }, // <-- ATUALIZADO: Agora aponta para /agenda
     { href: "/clientes", icon: Users, label: "Clientes" },
     { href: "/financeiro", icon: DollarSign, label: "Financeiro" },
     { href: "/dashboard", icon: BarChart3, label: "Dashboard" },
