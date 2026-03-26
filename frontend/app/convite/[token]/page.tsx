@@ -3,7 +3,7 @@
 import { useState, use } from "react";
 import { useRouter } from "next/navigation";
 import { useMutation } from "@tanstack/react-query";
-import { usarConvite } from "@/services/profissionais.service";
+import axios from "axios";
 import { Sparkles } from "lucide-react";
 
 // Importação dos componentes do Design System 2.0
@@ -21,11 +21,15 @@ export default function AceitarConvitePage({ params }: { params: Promise<{ token
   const [senha, setSenha] = useState("");
 
   const mutation = useMutation({
-    mutationFn: usarConvite,
-    onSuccess: (data) => {
+    mutationFn: (dados: any) => axios.post(`${process.env.NEXT_PUBLIC_API_URL}/convites/usar`, dados),
+    onSuccess: (response) => {
+      // O axios coloca a resposta do backend dentro de "data". 
+      // Como seu backend devolve { success: true, data: { token, usuario } }, pegamos o data.data
+      const respostaBackend = response.data.data; 
+      
       // Padronização de armazenamento (Seção 14.14 do Design System)
-      localStorage.setItem('agendar_token', data.token);
-      localStorage.setItem('agendar_usuario', JSON.stringify(data.usuario));
+      localStorage.setItem('agendar_token', respostaBackend.token);
+      localStorage.setItem('agendar_usuario', JSON.stringify(respostaBackend.usuario));
       router.push('/');
     },
     onError: (error: any) => {
@@ -71,6 +75,7 @@ export default function AceitarConvitePage({ params }: { params: Promise<{ token
               required
               value={nome}
               onChange={(e) => setNome(e.target.value)}
+              disabled={mutation.isPending}
             />
 
             <Input 
@@ -80,6 +85,7 @@ export default function AceitarConvitePage({ params }: { params: Promise<{ token
               required
               value={email}
               onChange={(e) => setEmail(e.target.value)}
+              disabled={mutation.isPending}
             />
 
             <Input 
@@ -90,6 +96,7 @@ export default function AceitarConvitePage({ params }: { params: Promise<{ token
               minLength={6}
               value={senha}
               onChange={(e) => setSenha(e.target.value)}
+              disabled={mutation.isPending}
             />
 
             <Button 
