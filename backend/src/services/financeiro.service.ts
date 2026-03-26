@@ -50,6 +50,7 @@ export async function criarLancamento(empresaId: string, dados: {
   descricao?: string
   forma_pagamento?: string
   cliente_id?: string
+  data?: string // <-- Adicionado para o frontend
 }) {
   if (!['entrada', 'saida'].includes(dados.tipo)) throw new Error('TIPO_INVALIDO')
   if (dados.valor <= 0) throw new Error('VALOR_INVALIDO')
@@ -63,6 +64,7 @@ export async function criarLancamento(empresaId: string, dados: {
       descricao: dados.descricao,
       forma_pagamento: dados.forma_pagamento,
       cliente_id: dados.cliente_id,
+      data: dados.data ? new Date(dados.data) : undefined, // <-- Salva com a data escolhida
     },
   })
 }

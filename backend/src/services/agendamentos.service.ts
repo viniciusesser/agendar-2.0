@@ -1,5 +1,6 @@
 import { prisma } from '../lib/prisma'
 
+// --- BUSCA ---
 export async function listarAgendamentosDia(empresaId: string, data: string) {
   const inicio = new Date(`${data}T00:00:00.000Z`)
   const fim = new Date(`${data}T23:59:59.999Z`)
@@ -19,6 +20,7 @@ export async function listarAgendamentosDia(empresaId: string, data: string) {
   })
 }
 
+// --- CRIAÇÃO ---
 export async function criarAgendamento(empresaId: string, dados: {
   cliente_id: string
   profissional_id: string
@@ -43,21 +45,10 @@ export async function criarAgendamento(empresaId: string, dados: {
   const inicio = new Date(dados.data_hora_inicio)
   const fim = new Date(inicio.getTime() + duracao * 60 * 1000)
 
-  // Verifica conflito com outro agendamento
-  const conflito = await prisma.ag_agendamentos.findFirst({
-    where: {
-      profissional_id: dados.profissional_id,
-      deleted_at: null,
-      status: { notIn: ['cancelado', 'nao_compareceu'] },
-      AND: [
-        { data_hora_inicio: { lt: fim } },
-        { data_hora_fim: { gt: inicio } },
-      ],
-    },
-  })
-  if (conflito) throw new Error('AGENDAMENTO_CONFLITO')
+  const agora = new Date()
+  agora.setMinutes(agora.getMinutes() - 5) 
+  if (inicio < agora) throw new Error('HORARIO_PASSADO')
 
-  // Verifica bloqueio
   const bloqueio = await prisma.ag_bloqueios.findFirst({
     where: {
       profissional_id: dados.profissional_id,
@@ -90,35 +81,131 @@ export async function criarAgendamento(empresaId: string, dados: {
   })
 }
 
-export async function atualizarStatus(empresaId: string, agendamentoId: string, dados: {
-  status: string
-  forma_pagamento?: string
-  version: number
-}) {
+// --- ATUALIZAÇÃO DE STATUS (SIMPLIFICADA) ---
+export async function atualizarStatusSimples(empresaId: string, agendamentoId: string, status: string) {
+  // Debug para você ver no terminal do VS Code o que está chegando
+  console.log(`[SERVICE] Solicitando mudança para: ${status} no agendamento ${agendamentoId}`);
+
+  const statusPermitidos = ['agendado', 'confirmado', 'atendimento', 'concluido', 'falta', 'cancelado'];
+  
+  if (!statusPermitidos.includes(status)) {
+    console.error(`[SERVICE] Status inválido recebido: ${status}`);
+    throw new Error('STATUS_INVALIDO');
+  }
+
   const agendamento = await prisma.ag_agendamentos.findFirst({
     where: { id: agendamentoId, empresa_id: empresaId, deleted_at: null },
-  })
+  });
 
-  if (!agendamento) throw new Error('NAO_ENCONTRADO')
-
-  // Lock otimista
-  if (agendamento.version !== dados.version) throw new Error('CONFLITO_EDICAO')
-
-  const statusValidos = ['agendado', 'confirmado', 'em_atendimento', 'finalizado', 'nao_compareceu']
-  if (!statusValidos.includes(dados.status)) throw new Error('STATUS_INVALIDO')
+  if (!agendamento) throw new Error('NAO_ENCONTRADO');
 
   return prisma.ag_agendamentos.update({
     where: { id: agendamentoId },
-    data: {
-      status: dados.status,
-      forma_pagamento: dados.forma_pagamento,
-      version: { increment: 1 },
-      finalizado_em: dados.status === 'finalizado' ? new Date() : undefined,
-    },
-    include: { cliente: true, profissional: true, servico: true },
+    data: { status },
+  });
+}
+
+// --- CHECKOUT E FINANCEIRO ---
+export async function finalizarCheckout(empresaId: string, agendamentoId: string, dados: {
+  forma_pagamento: string;
+  produtos_comanda: { id: string; quantidade: number; preco_venda: number }[];
+}) {
+  const agendamento = await prisma.ag_agendamentos.findFirst({
+    where: { id: agendamentoId, empresa_id: empresaId, deleted_at: null },
+    include: { servico: true, cliente: true }
+  })
+
+  if (!agendamento) throw new Error('NAO_ENCONTRADO')
+  if (agendamento.status === 'finalizado') throw new Error('JA_FINALIZADO')
+
+  const valorServico = Number(agendamento.valor);
+  const valorProdutos = dados.produtos_comanda.reduce((acc, p) => acc + (p.preco_venda * p.quantidade), 0);
+  const valorTotal = valorServico + valorProdutos;
+
+  const isFiado = dados.forma_pagamento === 'fiado';
+  const statusFinanceiro = isFiado ? 'pendente' : 'pago';
+
+  return await prisma.$transaction(async (tx) => {
+    
+    // 1. Finaliza agendamento
+    const agendamentoAtualizado = await tx.ag_agendamentos.update({
+      where: { id: agendamentoId },
+      data: {
+        status: 'finalizado',
+        finalizado_em: new Date(),
+        forma_pagamento: dados.forma_pagamento
+      }
+    })
+
+    // 2. Se fiado, soma no cliente
+    if (isFiado) {
+      await tx.ag_clientes.update({
+        where: { id: agendamento.cliente_id },
+        data: { debito: { increment: valorTotal } }
+      })
+    }
+
+    // 3. Financeiro do Serviço
+    await tx.ag_financeiro.create({
+      data: {
+        empresa_id: empresaId,
+        cliente_id: agendamento.cliente_id,
+        agendamento_id: agendamento.id,
+        tipo: 'entrada',
+        origem: 'servico',
+        valor: valorServico,
+        descricao: `Serviço: ${agendamento.servico.nome}`,
+        forma_pagamento: dados.forma_pagamento,
+        status: statusFinanceiro,
+        responsavel: 'caixa'
+      }
+    })
+
+    // 4. Financeiro e Estoque dos Produtos
+    for (const item of dados.produtos_comanda) {
+      const produto = await tx.ag_estoque.findUnique({ where: { id: item.id } })
+      
+      if (!produto || Number(produto.quantidade) < item.quantidade) {
+        throw new Error(`ESTOQUE_INSUFICIENTE`);
+      }
+
+      await tx.ag_estoque.update({
+        where: { id: item.id },
+        data: { quantidade: { decrement: item.quantidade } }
+      })
+
+      await tx.ag_estoque_movimentacoes.create({
+        data: {
+          empresa_id: empresaId,
+          produto_id: item.id,
+          agendamento_id: agendamento.id,
+          tipo: 'saida',
+          quantidade: item.quantidade,
+          motivo: `Venda na Comanda`
+        }
+      })
+
+      await tx.ag_financeiro.create({
+        data: {
+          empresa_id: empresaId,
+          cliente_id: agendamento.cliente_id,
+          agendamento_id: agendamento.id,
+          tipo: 'entrada',
+          origem: 'venda_produto',
+          valor: item.preco_venda * item.quantidade,
+          descricao: `Produto: ${produto.nome} (${item.quantidade}x)`,
+          forma_pagamento: dados.forma_pagamento,
+          status: statusFinanceiro,
+          responsavel: 'caixa'
+        }
+      })
+    }
+
+    return agendamentoAtualizado
   })
 }
 
+// --- CANCELAMENTO E BLOQUEIO ---
 export async function cancelarAgendamento(empresaId: string, agendamentoId: string) {
   const agendamento = await prisma.ag_agendamentos.findFirst({
     where: { id: agendamentoId, empresa_id: empresaId, deleted_at: null },
@@ -129,7 +216,7 @@ export async function cancelarAgendamento(empresaId: string, agendamentoId: stri
 
   return prisma.ag_agendamentos.update({
     where: { id: agendamentoId },
-    data: { deleted_at: new Date() },
+    data: { deleted_at: new Date(), status: 'cancelado' },
   })
 }
 

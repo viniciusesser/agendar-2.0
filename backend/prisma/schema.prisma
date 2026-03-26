@@ -8,24 +8,24 @@ datasource db {
 }
 
 model ag_empresas {
-  id             String               @id @default(uuid())
-  nome           String
-  telefone       String?
-  plano          String               @default("free")
-  plano_validade DateTime?
-  ativo          Boolean              @default(true)
-  deleted_at     DateTime?
-  criado_em      DateTime             @default(now())
-  usuarios       ag_usuarios[]
-  profissionais  ag_profissionais[]
-  clientes       ag_clientes[]
-  servicos       ag_servicos[]
-  agendamentos   ag_agendamentos[]
-  bloqueios      ag_bloqueios[]
-  financeiro     ag_financeiro[]
-  socias         ag_socias[]
-  estoque        ag_estoque[]
-  configuracoes  ag_configuracoes[]
+  id               String                @id @default(uuid())
+  nome             String
+  telefone         String?
+  plano            String                @default("free")
+  plano_validade   DateTime?
+  ativo            Boolean               @default(true)
+  deleted_at       DateTime?
+  criado_em        DateTime              @default(now())
+  usuarios         ag_usuarios[]
+  profissionais    ag_profissionais[]
+  clientes         ag_clientes[]
+  servicos         ag_servicos[]
+  agendamentos     ag_agendamentos[]
+  bloqueios        ag_bloqueios[]
+  financeiro       ag_financeiro[]
+  socias           ag_socias[]
+  estoque          ag_estoque[]
+  configuracoes    ag_configuracoes[]
 }
 
 model ag_usuarios {
@@ -57,6 +57,7 @@ model ag_profissionais {
   socia             ag_socias?
   financeiro_div    ag_financeiro_divisao[]
   comissoes_servico ag_servico_comissao[]
+  comissao_produto_pct Decimal?  @default(0)
 }
 
 model ag_socias {
@@ -86,43 +87,43 @@ model ag_clientes {
 }
 
 model ag_servicos {
-  id           String            @id @default(uuid())
+  id           String                @id @default(uuid())
   empresa_id   String
   nome         String
-  duracao_min  Int               @default(60)
-  preco        Decimal           @default(0)
-  ativo        Boolean           @default(true)
+  duracao_min  Int                   @default(60)
+  preco        Decimal               @default(0)
+  ativo        Boolean               @default(true)
   deleted_at   DateTime?
-  criado_em    DateTime          @default(now())
-  empresa      ag_empresas       @relation(fields: [empresa_id], references: [id])
+  criado_em    DateTime              @default(now())
+  empresa      ag_empresas           @relation(fields: [empresa_id], references: [id])
   agendamentos ag_agendamentos[]
   comissoes    ag_servico_comissao[]
 }
 
 model ag_agendamentos {
-  id               String                  @id @default(uuid())
-  empresa_id       String
-  cliente_id       String
-  profissional_id  String
-  servico_id       String
+  id              String                  @id @default(uuid())
+  empresa_id      String
+  cliente_id      String
+  profissional_id String
+  servico_id      String
   data_hora_inicio DateTime
-  duracao_min      Int
-  data_hora_fim    DateTime
-  valor            Decimal
-  comissao_pct     Decimal                 @default(0)
-  comissao_valor   Decimal                 @default(0)
-  status           String                  @default("agendado")
-  forma_pagamento  String?
-  observacoes      String?
-  version          Int                     @default(1)
-  deleted_at       DateTime?
-  criado_em        DateTime                @default(now())
-  finalizado_em    DateTime?
-  empresa          ag_empresas             @relation(fields: [empresa_id], references: [id])
-  cliente          ag_clientes             @relation(fields: [cliente_id], references: [id])
-  profissional     ag_profissionais        @relation(fields: [profissional_id], references: [id])
-  servico          ag_servicos             @relation(fields: [servico_id], references: [id])
-  financeiro       ag_financeiro[]
+  duracao_min     Int
+  data_hora_fim   DateTime
+  valor           Decimal
+  comissao_pct    Decimal                 @default(0)
+  comissao_valor  Decimal                 @default(0)
+  status          String                  @default("agendado")
+  forma_pagamento String?
+  observacoes     String?
+  version         Int                     @default(1)
+  deleted_at      DateTime?
+  criado_em       DateTime                @default(now())
+  finalizado_em   DateTime?
+  empresa         ag_empresas             @relation(fields: [empresa_id], references: [id])
+  cliente         ag_clientes             @relation(fields: [cliente_id], references: [id])
+  profissional    ag_profissionais        @relation(fields: [profissional_id], references: [id])
+  servico         ag_servicos             @relation(fields: [servico_id], references: [id])
+  financeiro      ag_financeiro[]
 }
 
 model ag_bloqueios {
@@ -149,6 +150,8 @@ model ag_financeiro {
   agendamento_id   String?
   data             DateTime                @default(now())
   criado_em        DateTime                @default(now())
+  responsavel      String?                 @default("sistema")
+  status           String                  @default("pago")
   empresa          ag_empresas             @relation(fields: [empresa_id], references: [id])
   cliente          ag_clientes?            @relation(fields: [cliente_id], references: [id])
   agendamento      ag_agendamentos?        @relation(fields: [agendamento_id], references: [id])
@@ -168,40 +171,42 @@ model ag_financeiro_divisao {
 }
 
 model ag_estoque {
-  id              String                      @id @default(uuid())
-  empresa_id      String
-  nome            String
-  quantidade      Decimal                     @default(0)
-  unidade         String                      @default("un")
-  rendimento_est  Decimal?
-  estoque_minimo  Decimal                     @default(0)
-  deleted_at      DateTime?
-  criado_em       DateTime                    @default(now())
-  empresa         ag_empresas                 @relation(fields: [empresa_id], references: [id])
-  movimentacoes   ag_estoque_movimentacoes[]
+  id               String                     @id @default(uuid())
+  empresa_id       String
+  nome             String
+  quantidade       Decimal                    @default(0)
+  unidade          String                     @default("un")
+  rendimento_est   Decimal?
+  estoque_minimo   Decimal                    @default(0)
+  deleted_at       DateTime?
+  criado_em        DateTime                   @default(now())
+  empresa          ag_empresas                @relation(fields: [empresa_id], references: [id])
+  movimentacoes    ag_estoque_movimentacoes[]
+  preco_compra     Decimal?                   @default(0.00) @db.Decimal(10, 2)
+  preco_venda      Decimal?                   @default(0.00) @db.Decimal(10, 2)
 }
 
 model ag_estoque_movimentacoes {
-  id              String      @id @default(uuid())
-  empresa_id      String
-  produto_id      String
-  tipo            String
-  quantidade      Decimal
-  motivo          String?
-  agendamento_id  String?
-  data            DateTime    @default(now())
-  produto         ag_estoque  @relation(fields: [produto_id], references: [id])
+  id               String      @id @default(uuid())
+  empresa_id       String
+  produto_id       String
+  tipo             String
+  quantidade       Decimal
+  motivo           String?
+  agendamento_id   String?
+  data             DateTime    @default(now())
+  produto          ag_estoque  @relation(fields: [produto_id], references: [id])
 }
 
 model ag_convites {
-  id         String    @id @default(uuid())
+  id         String   @id @default(uuid())
   empresa_id String
-  token      String    @unique
+  token      String   @unique
   email      String?
-  perfil     String    @default("funcionario")
-  usado      Boolean   @default(false)
+  perfil     String   @default("funcionario")
+  usado      Boolean  @default(false)
   expira_em  DateTime
-  criado_em  DateTime  @default(now())
+  criado_em  DateTime @default(now())
 }
 
 model ag_servico_comissao {
@@ -217,7 +222,7 @@ model ag_servico_comissao {
 }
 
 model ag_configuracoes {
-  id         String   @id @default(uuid())
+  id         String      @id @default(uuid())
   empresa_id String
   chave      String
   valor      String

@@ -19,29 +19,23 @@ export async function configuracoesRoutes(app: FastifyInstance) {
 
   // Salvar uma configuração (só dono)
   app.put('/configuracoes/:chave', { preHandler: exigirPerfil('dono') }, async (req: FastifyRequest, reply: FastifyReply) => {
-    try {
-      const { chave } = req.params as any
-      const { valor } = req.body as any
-      if (valor === undefined) return reply.status(400).send({ success: false, error: { code: 'VALIDACAO', message: 'valor é obrigatório.' } })
-      const config = await salvarConfiguracao(req.usuario.empresaId, chave, String(valor))
-      return reply.send({ success: true, data: config })
-    } catch (e: any) {
-      if (e.message === 'CHAVE_INVALIDA') return reply.status(400).send({ success: false, error: { code: 'CHAVE_INVALIDA', message: 'Chave de configuração inválida.' } })
-      throw e
+    const { chave } = req.params as any
+    const { valor } = req.body as any
+    if (valor === undefined) {
+      return reply.status(400).send({ success: false, error: { code: 'VALIDACAO', message: 'valor é obrigatório.' } })
     }
+    const config = await salvarConfiguracao(req.usuario.empresaId, chave, String(valor))
+    return reply.send({ success: true, data: config })
   })
 
   // Salvar múltiplas configurações de uma vez (só dono)
   app.put('/configuracoes', { preHandler: exigirPerfil('dono') }, async (req: FastifyRequest, reply: FastifyReply) => {
-    try {
-      const body = req.body as any
-      if (!body || typeof body !== 'object') return reply.status(400).send({ success: false, error: { code: 'VALIDACAO', message: 'Body deve ser um objeto com as configurações.' } })
-      const configs = await salvarMultiplasConfiguracoes(req.usuario.empresaId, body)
-      return reply.send({ success: true, data: configs })
-    } catch (e: any) {
-      if (e.message?.startsWith('CHAVE_INVALIDA')) return reply.status(400).send({ success: false, error: { code: 'CHAVE_INVALIDA', message: e.message } })
-      throw e
+    const body = req.body as any
+    if (!body || typeof body !== 'object') {
+      return reply.status(400).send({ success: false, error: { code: 'VALIDACAO', message: 'Body deve ser um objeto com as configurações.' } })
     }
+    const configs = await salvarMultiplasConfiguracoes(req.usuario.empresaId, body)
+    return reply.send({ success: true, data: configs })
   })
 
   // Listar sócias
@@ -52,6 +46,8 @@ export async function configuracoesRoutes(app: FastifyInstance) {
 
   // Salvar sócias (só dono)
   app.put('/socias', { preHandler: exigirPerfil('dono') }, async (req: FastifyRequest, reply: FastifyReply) => {
+    // Mantemos um try/catch específico aqui para pegar os erros vitais de negócio que disparamos no service
+    // (PERCENTUAL_INVALIDO e PROFISSIONAL_NAO_ENCONTRADO), pois eles exigem mensagens customizadas
     try {
       const { socias } = req.body as any
       if (!socias || !Array.isArray(socias) || socias.length === 0) {

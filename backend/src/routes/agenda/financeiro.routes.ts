@@ -18,37 +18,31 @@ export async function financeiroRoutes(app: FastifyInstance) {
     return reply.send({ success: true, data: relatorio })
   })
 
-  // Lançamento manual
+  // Lançamento manual (Sem try/catch, apenas validação inicial)
   app.post('/financeiro', async (req: FastifyRequest, reply: FastifyReply) => {
-    try {
-      const body = req.body as any
-      if (!body.tipo || !body.valor) return reply.status(400).send({ success: false, error: { code: 'VALIDACAO', message: 'tipo e valor são obrigatórios.' } })
-      const lancamento = await criarLancamento(req.usuario.empresaId, body)
-      return reply.status(201).send({ success: true, data: lancamento })
-    } catch (e: any) {
-      if (e.message === 'TIPO_INVALIDO') return reply.status(400).send({ success: false, error: { code: 'TIPO_INVALIDO', message: 'tipo deve ser entrada ou saida.' } })
-      if (e.message === 'VALOR_INVALIDO') return reply.status(400).send({ success: false, error: { code: 'VALOR_INVALIDO', message: 'valor deve ser maior que zero.' } })
-      throw e
+    const body = req.body as any
+    if (!body.tipo || !body.valor) {
+      return reply.status(400).send({ success: false, error: { code: 'VALIDACAO', message: 'tipo e valor são obrigatórios.' } })
     }
+    const lancamento = await criarLancamento(req.usuario.empresaId, body)
+    return reply.status(201).send({ success: true, data: lancamento })
   })
 
-  // Venda avulsa
+  // Venda avulsa (Sem try/catch, apenas validação inicial)
   app.post('/financeiro/venda-avulsa', async (req: FastifyRequest, reply: FastifyReply) => {
-    try {
-      const body = req.body as any
-      if (!body.descricao || !body.valor || !body.forma_pagamento) {
-        return reply.status(400).send({ success: false, error: { code: 'VALIDACAO', message: 'descricao, valor e forma_pagamento são obrigatórios.' } })
-      }
-      const lancamento = await vendaAvulsa(req.usuario.empresaId, body)
-      return reply.status(201).send({ success: true, data: lancamento })
-    } catch (e: any) {
-      if (e.message === 'VALOR_INVALIDO') return reply.status(400).send({ success: false, error: { code: 'VALOR_INVALIDO', message: 'valor deve ser maior que zero.' } })
-      throw e
+    const body = req.body as any
+    if (!body.descricao || !body.valor || !body.forma_pagamento) {
+      return reply.status(400).send({ success: false, error: { code: 'VALIDACAO', message: 'descricao, valor e forma_pagamento são obrigatórios.' } })
     }
+    const lancamento = await vendaAvulsa(req.usuario.empresaId, body)
+    return reply.status(201).send({ success: true, data: lancamento })
   })
 
   // Finalizar agendamento com geração financeira
   app.post('/financeiro/finalizar/:agendamentoId', async (req: FastifyRequest, reply: FastifyReply) => {
+    // Aqui mantemos o try/catch apenas para tratar lógicas de negócio MUITO específicas do financeiro
+    // que fogem do CRUD padrão, como "JA_FINALIZADO" ou "CONFLITO_EDICAO", garantindo uma
+    // resposta elegante que ainda não está no Gerente Global.
     try {
       const { agendamentoId } = req.params as any
       const { forma_pagamento, version } = req.body as any

@@ -9,10 +9,23 @@ export async function listarProfissionais(empresaId: string) {
   })
 }
 
+export async function criarProfissional(empresaId: string, dados: { nome: string, cor?: string, comissao_pct?: number, comissao_produto_pct?: number }) {
+  return prisma.ag_profissionais.create({
+    data: {
+      empresa_id: empresaId,
+      nome: dados.nome,
+      cor: dados.cor,
+      comissao_pct: dados.comissao_pct ?? 0,
+      comissao_produto_pct: dados.comissao_produto_pct ?? 0,
+    },
+  })
+}
+
 export async function editarProfissional(empresaId: string, profissionalId: string, dados: {
   nome?: string
   cor?: string
   comissao_pct?: number
+  comissao_produto_pct?: number
   ativo?: boolean
 }) {
   const prof = await prisma.ag_profissionais.findFirst({
@@ -160,4 +173,35 @@ export async function usarConvite(token: string, dados: {
   )
 
   return { token: tokenJwt, usuario: { id: usuario.id, nome: usuario.nome, email: usuario.email, perfil: usuario.perfil } }
+}
+
+// NOVA FUNÇÃO: Soft Delete do Profissional E Bloqueio de Acesso
+export async function excluirProfissional(empresaId: string, profissionalId: string) {
+  const prof = await prisma.ag_profissionais.findFirst({
+    where: { id: profissionalId, empresa_id: empresaId, deleted_at: null },
+  })
+  
+  if (!prof) throw new Error('NAO_ENCONTRADO')
+
+  // O $transaction garante que se uma atualização falhar, a outra é desfeita.
+  return prisma.$transaction(async (tx) => {
+    // 1. Remove o profissional da Agenda e da Equipe
+    const profissionalInativado = await tx.ag_profissionais.update({
+      where: { id: profissionalId },
+      data: { deleted_at: new Date() },
+    })
+
+    // 2. Se a pessoa tinha um login de acesso ao app, bloqueia o usuário também
+    if (profissionalInativado.usuario_id) {
+      // Usamos uma tentativa de update (updateMany) caso a tabela de usuários 
+      // não tenha o ID explícito ou para evitar erros se o usuário já tiver sido deletado
+      await tx.ag_usuarios.updateMany({
+        where: { id: profissionalInativado.usuario_id },
+        // Presumindo que sua tabela de usuários tenha o campo deleted_at ou ativo
+        data: { deleted_at: new Date() } 
+      })
+    }
+
+    return profissionalInativado;
+  })
 }

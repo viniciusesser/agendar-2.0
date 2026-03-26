@@ -1,0 +1,16 @@
+{
+  "name": "Agendar",
+  "short_name": "Agendar",
+  "description": "Gestão inteligente para Salão de Beleza",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#e11d48",
+  "icons": [
+    {
+      "src": "/next.svg",
+      "sizes": "192x192",
+      "type": "image/svg+xml"
+    }
+  ]
+}

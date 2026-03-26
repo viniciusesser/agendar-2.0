@@ -1,0 +1,108 @@
+@import "tailwindcss";
+
+@theme {
+  /* Escala Primária */
+  --color-primary-50: #FFF1F3;
+  --color-primary-100: #FFE4E8;
+  --color-primary-200: #FBCDD5;
+  --color-primary-300: #F7B5C1;
+  --color-primary-400: #EFA3B0;
+  --color-primary-500: #CF97A0;
+  --color-primary-600: #B87F89;
+  --color-primary-700: #9E676F;
+  --color-primary-800: #7E4F55;
+  --color-primary-900: #5F3A3F;
+
+  /* Escala Neutra */
+  --color-neutral-50: #F5F0EE;
+  --color-neutral-100: #ECECEC;
+  --color-neutral-500: #5A5E61;
+  --color-neutral-900: #2A2320;
+
+  /* Cores de Status */
+  --color-status-success: #A8C8A0;
+  --color-status-warning: #F0C080;
+  --color-status-error: #EF5350;
+
+  /* Semânticos */
+  --color-bg-default: var(--color-neutral-50);
+  --color-surface: #FFFFFF;
+  --color-text-primary: var(--color-neutral-900);
+  --color-text-secondary: var(--color-neutral-500);
+  --color-primary-action: var(--color-primary-500);
+
+  /* Raio da Borda */
+  --radius-xl: 20px;
+}
+
+/* Reset e Body */
+@layer base {
+  *, ::before, ::after {
+    border-color: var(--color-neutral-100);
+  }
+  
+  html, body {
+    height: 100%;
+    background-color: #F5F0EE; /* Fallback fixo para evitar Hydration Error */
+    color: #2A2320;
+    font-family: 'Inter', sans-serif;
+  }
+}
+
+/* Títulos sempre com a cor primária de texto e tracking apertado */
+h1, h2, h3, h4 {
+  color: var(--color-text-primary);
+  letter-spacing: -0.025em;
+}
+
+/* =========================================================
+   ESTADOS GLOBAIS DE INTERAÇÃO (Regra 7 do Design System)
+   ========================================================= */
+/* Transição suave obrigatória para tudo que for interativo */
+button, a, input, select, textarea, .card-interativo {
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Focus Ring de Acessibilidade */
+*:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--color-primary-300);
+}
+
+/* Ajustes finos para Inputs no iOS (evita zoom automático) */
+input, select, textarea {
+  font-size: 16px !important; 
+}
+
+/* =========================================================
+   UTILITÁRIOS GLOBAIS
+   ========================================================= */
+/* Personalização de Scrollbar para ficar discreta */
+::-webkit-scrollbar {
+  width: 4px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--color-primary-300);
+  border-radius: var(--radius-pill);
+}
+
+/* Esconder scrollbar (usado em abas horizontais e na Agenda) */
+.hide-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+/* Efeito de vidro suave para headers/navs fixos */
+.glass {
+  background: rgba(255, 255, 255, 0.8);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
