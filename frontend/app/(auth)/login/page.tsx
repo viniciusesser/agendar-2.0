@@ -36,7 +36,7 @@ export default function LoginPage() {
       localStorage.setItem('agendar_usuario', JSON.stringify(dados.usuario))
 
       // 4. Redireciona para o local correto
-      router.push('/dashboard')
+      router.push('/agenda') // Mudamos de '/dashboard' para '/agenda'
       
     } catch (err: any) {
       console.error("Erro no login:", err)
