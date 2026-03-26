@@ -54,7 +54,7 @@ export default function RegistroPage() {
           <form onSubmit={handleSubmit} className="space-y-6">
             <Input 
               label="Nome do seu Salão" 
-              name="nome_empresa" 
+              name="nome_salao" 
               placeholder="Ex: Studio VIP" 
               required 
               disabled={mutation.isPending}
