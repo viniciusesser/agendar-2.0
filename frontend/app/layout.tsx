@@ -6,8 +6,18 @@ import { Providers } from "./providers";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "Agendar 2.0 - Enterprise",
-  description: "Gestão profissional de beleza",
+  title: "Agendar 2.0 - Gestão para Salões",
+  description: "Organize sua agenda e finanças com inteligência.",
+  manifest: "/manifest.json",
+  icons: {
+    icon: [
+      { url: "/icon-192.png", sizes: "192x192", type: "image/png" },
+      { url: "/favicon.ico", sizes: "any" }, // Fallback para navegadores antigos
+    ],
+    apple: [
+      { url: "/icon-192.png", sizes: "192x192", type: "image/png" },
+    ],
+  },
 };
 
 export const viewport: Viewport = {
