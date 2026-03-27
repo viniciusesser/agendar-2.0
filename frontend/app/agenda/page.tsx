@@ -9,10 +9,12 @@ import {
   AlertTriangle, 
   Scissors, 
   DollarSign, 
-  ChevronDown
+  ChevronDown,
+  UserX
 } from "lucide-react";
 import { useState, useEffect } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import axios from "axios";
 import { buscarAgendamentosDoDia } from "@/services/agendamentos.service";
 import { buscarConfiguracoes } from "@/services/configuracoes.service";
 import { buscarDashboardDia } from "@/services/dashboard.service";
@@ -78,9 +80,9 @@ function getPositionStyles(dataHoraInicioIso: string, duracaoMinutos: number, st
   return { top: `${top}px`, height: `${height}px` };
 }
 
-function organizarAgendamentosSemSobreposicao(agendamentos: any[]) {
-  if (!agendamentos || agendamentos.length === 0) return [];
-  const ativos = agendamentos.filter(ag => ag.status !== 'cancelado');
+function organizarAgendamentosSemSobreposicao(itensGrid: any[]) {
+  if (!itensGrid || itensGrid.length === 0) return [];
+  const ativos = itensGrid.filter(ag => ag.status !== 'cancelado');
   const ordenados = [...ativos].sort((a, b) => new Date(a.data_hora_inicio).getTime() - new Date(b.data_hora_inicio).getTime());
 
   const colunas: any[][] = [];
@@ -138,6 +140,7 @@ function organizarAgendamentosSemSobreposicao(agendamentos: any[]) {
 
 export default function AgendaPage() {
   const slotHeightPixels = 56; 
+  const queryClient = useQueryClient();
   const [dataSelecionada, setDataSelecionada] = useState("");
 
   useEffect(() => {
@@ -147,11 +150,18 @@ export default function AgendaPage() {
   const [isModalNovoOpen, setIsModalNovoOpen] = useState(false);
   const [agendamentoSelecionado, setAgendamentoSelecionado] = useState<any>(null);
 
-  const { data: agendamentos, isLoading: loadAgenda } = useQuery({
+  // Busca Agendamentos e Bloqueios
+  const { data: agendaDados, isLoading: loadAgenda } = useQuery({
     queryKey: ['agendamentos', dataSelecionada],
     queryFn: () => buscarAgendamentosDoDia(dataSelecionada),
     enabled: !!dataSelecionada
   });
+
+  // O novo backend retorna { agendamentos: [...], bloqueios: [...] }
+  // O fallback abaixo garante que não quebre se tiver o formato antigo em cache
+  const dadosApi = agendaDados as any;
+  const listaAgendamentos = Array.isArray(dadosApi) ? dadosApi : (dadosApi?.agendamentos || []);
+  const listaBloqueios = Array.isArray(dadosApi) ? [] : (dadosApi?.bloqueios || []);
 
   const { data: configs } = useQuery({
     queryKey: ['configuracoes'],
@@ -163,6 +173,28 @@ export default function AgendaPage() {
     queryFn: () => buscarDashboardDia(dataSelecionada),
     enabled: !!dataSelecionada
   });
+
+  // Mutation para excluir bloqueio
+  const mutationExcluirBloqueio = useMutation({
+    mutationFn: async (id: string) => {
+      const token = localStorage.getItem('agendar_token');
+      return axios.delete(`${process.env.NEXT_PUBLIC_API_URL}/bloqueios/${id}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['agendamentos'] });
+    },
+    onError: () => {
+      alert("Erro ao excluir bloqueio. Tente novamente.");
+    }
+  });
+
+  const handleExcluirBloqueio = (bloqueio: any) => {
+    if (window.confirm(`Deseja remover o bloqueio de ${bloqueio.profissional?.nome} e liberar este horário?`)) {
+      mutationExcluirBloqueio.mutate(bloqueio.id);
+    }
+  };
 
   const mudarDia = (dias: number) => {
     const d = new Date(dataSelecionada + 'T12:00:00');
@@ -184,7 +216,15 @@ export default function AgendaPage() {
   const slotMinutes = cfg?.slot_minutos ? parseInt(cfg.slot_minutos) : 30;
 
   const timeSlots = generateTimeSlots(startHour, endHour, slotMinutes);
-  const agendamentosOrganizados = organizarAgendamentosSemSobreposicao(agendamentos || []);
+
+  // Formata os bloqueios para terem a mesma estrutura básica (início e duração) que a grade espera
+  const bloqueiosFormatados = listaBloqueios.map((b: any) => ({
+    ...b,
+    isBloqueio: true,
+    duracao_min: (new Date(b.data_hora_fim).getTime() - new Date(b.data_hora_inicio).getTime()) / 60000
+  }));
+
+  const itensOrganizados = organizarAgendamentosSemSobreposicao([...listaAgendamentos, ...bloqueiosFormatados]);
 
   if (!dataSelecionada) return null;
 
@@ -230,12 +270,22 @@ export default function AgendaPage() {
         </div>
       </header>
 
-      {/* ALERTAS */}
+      {/* ALERTAS DO SISTEMA (Dashboard) */}
       {(dashDia?.alertas?.aniversariantes?.length > 0 || dashDia?.alertas?.estoque_baixo?.length > 0) && (
         <div className="bg-status-warning/10 border-b border-status-warning/20 px-4 py-2 flex items-center justify-center gap-2 animate-in slide-in-from-top duration-300">
           <AlertTriangle size={14} className="text-status-warning" strokeWidth={3} />
           <p className="text-micro font-bold text-status-warning uppercase tracking-widest text-center leading-tight">
             Avisos importantes na central de notificações!
+          </p>
+        </div>
+      )}
+
+      {/* BANNER DE BLOQUEIOS (Quem está ausente hoje) */}
+      {listaBloqueios.length > 0 && (
+        <div className="bg-status-error/10 border-b border-status-error/20 px-4 py-3 flex items-center justify-center gap-2 animate-in slide-in-from-top duration-300">
+          <UserX size={16} className="text-status-error shrink-0" strokeWidth={2.5} />
+          <p className="text-micro font-bold text-status-error uppercase tracking-widest text-center leading-tight">
+            Ausentes hoje: {Array.from(new Set(listaBloqueios.map((b: any) => b.profissional?.nome))).join(', ')}
           </p>
         </div>
       )}
@@ -271,10 +321,40 @@ export default function AgendaPage() {
                     <CurrentTimeIndicator startHour={startHour} slotMinutes={slotMinutes} slotHeight={slotHeightPixels} />
                   )}
 
-                  {agendamentosOrganizados.map((ag: any) => {
+                  {itensOrganizados.map((ag: any) => {
                     const duracao = ag.duracao_min || ag.servico?.duracao_min || 60;
                     const pos = getPositionStyles(ag.data_hora_inicio, duracao, startHour, slotMinutes, slotHeightPixels);
                     
+                    // RENDERIZAÇÃO DE BLOQUEIO (Cards Cinzas)
+                    if (ag.isBloqueio) {
+                      return (
+                        <div
+                          key={ag.id}
+                          onClick={() => handleExcluirBloqueio(ag)}
+                          className="absolute rounded-xl p-2 border-2 border-dashed border-text-muted/20 pointer-events-auto cursor-pointer flex flex-col items-center justify-center group overflow-hidden active:scale-[0.98] transition-all"
+                          style={{
+                            top: `calc(${pos.top} + 2px)`,
+                            height: `calc(${pos.height} - 4px)`,
+                            left: `calc(${ag._leftPct}% + 4px)`,
+                            width: `calc(${ag._widthPct}% - 8px)`,
+                            backgroundColor: '#F3F4F6', // bg-neutral-100
+                            backgroundImage: 'repeating-linear-gradient(45deg, transparent, transparent 10px, rgba(0,0,0,0.03) 10px, rgba(0,0,0,0.03) 20px)',
+                            zIndex: 5
+                          }}
+                          title="Clique para remover bloqueio"
+                        >
+                          <div className="bg-surface/90 px-3 py-1.5 rounded-lg shadow-sm text-center flex flex-col items-center max-w-full">
+                            <UserX size={14} className="text-text-muted mb-0.5 group-hover:text-status-error transition-colors" />
+                            <p className="text-[10px] font-black text-text-secondary uppercase truncate w-full">
+                              {ag.profissional?.nome}
+                            </p>
+                            {ag.motivo && <p className="text-[9px] font-bold text-status-error uppercase truncate w-full mt-0.5">{ag.motivo}</p>}
+                          </div>
+                        </div>
+                      );
+                    }
+
+                    // RENDERIZAÇÃO NORMAL (Agendamentos)
                     const statusColors: Record<string, string> = {
                       'confirmado': 'bg-status-success/40',
                       'atendimento': 'bg-status-warning/40',
@@ -326,7 +406,7 @@ export default function AgendaPage() {
         )}
       </main>
 
-      {/* BOTÃO ADICIONAR - CORRIGIDO (Fundo brand e Ícone Branco) */}
+      {/* BOTÃO ADICIONAR */}
       <button 
         onClick={() => setIsModalNovoOpen(true)}
         className="fixed bottom-24 right-6 w-14 h-14 bg-primary-action text-white rounded-2xl shadow-soft flex items-center justify-center hover:scale-105 active:scale-90 transition-all z-40"

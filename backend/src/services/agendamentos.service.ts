@@ -1,11 +1,12 @@
 import { prisma } from '../lib/prisma'
 
-// --- BUSCA ---
+// --- BUSCA MISTA (AGENDAMENTOS + BLOQUEIOS) ---
 export async function listarAgendamentosDia(empresaId: string, data: string) {
   const inicio = new Date(`${data}T00:00:00.000Z`)
   const fim = new Date(`${data}T23:59:59.999Z`)
 
-  return prisma.ag_agendamentos.findMany({
+  // 1. Busca os Agendamentos Normais
+  const agendamentos = await prisma.ag_agendamentos.findMany({
     where: {
       empresa_id: empresaId,
       deleted_at: null,
@@ -18,6 +19,27 @@ export async function listarAgendamentosDia(empresaId: string, data: string) {
     },
     orderBy: { data_hora_inicio: 'asc' },
   })
+
+  // 2. Busca os Bloqueios desse mesmo dia
+  const bloqueios = await prisma.ag_bloqueios.findMany({
+    where: {
+      empresa_id: empresaId,
+      // Pega qualquer bloqueio que toque no dia de hoje
+      AND: [
+        { data_hora_inicio: { lte: fim } },
+        { data_hora_fim: { gte: inicio } }
+      ]
+    },
+    include: {
+      profissional: true
+    }
+  })
+
+  // Retornamos os dois agrupados para o Frontend processar e desenhar a tela
+  return {
+    agendamentos,
+    bloqueios
+  }
 }
 
 // --- CRIAÇÃO ---
@@ -81,9 +103,8 @@ export async function criarAgendamento(empresaId: string, dados: {
   })
 }
 
-// --- ATUALIZAÇÃO DE STATUS (SIMPLIFICADA) ---
+// --- ATUALIZAÇÃO DE STATUS ---
 export async function atualizarStatusSimples(empresaId: string, agendamentoId: string, status: string) {
-  // Debug para você ver no terminal do VS Code o que está chegando
   console.log(`[SERVICE] Solicitando mudança para: ${status} no agendamento ${agendamentoId}`);
 
   const statusPermitidos = ['agendado', 'confirmado', 'atendimento', 'concluido', 'falta', 'cancelado'];
@@ -205,7 +226,7 @@ export async function finalizarCheckout(empresaId: string, agendamentoId: string
   })
 }
 
-// --- CANCELAMENTO E BLOQUEIO ---
+// --- CANCELAMENTO E GERENCIAMENTO DE BLOQUEIO ---
 export async function cancelarAgendamento(empresaId: string, agendamentoId: string) {
   const agendamento = await prisma.ag_agendamentos.findFirst({
     where: { id: agendamentoId, empresa_id: empresaId, deleted_at: null },
@@ -239,5 +260,18 @@ export async function criarBloqueio(empresaId: string, dados: {
       data_hora_fim: new Date(dados.data_hora_fim),
       motivo: dados.motivo,
     },
+  })
+}
+
+export async function excluirBloqueio(empresaId: string, bloqueioId: string) {
+  const bloqueio = await prisma.ag_bloqueios.findFirst({
+    where: { id: bloqueioId, empresa_id: empresaId }
+  })
+
+  if (!bloqueio) throw new Error('BLOQUEIO_NAO_ENCONTRADO')
+
+  // Ao invés de soft delete, bloqueios podem ser deletados fisicamente para não poluir o banco
+  return prisma.ag_bloqueios.delete({
+    where: { id: bloqueioId }
   })
 }

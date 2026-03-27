@@ -7,12 +7,13 @@ import {
   finalizarCheckout,
   cancelarAgendamento,
   criarBloqueio,
+  excluirBloqueio // <- Nova importação aqui
 } from '../../services/agendamentos.service'
 
 export async function agendamentosRoutes(app: FastifyInstance) {
   app.addHook('preHandler', autenticar)
 
-  // Listar agendamentos do dia
+  // Listar agendamentos (e bloqueios) do dia
   app.get('/agendamentos', async (req: FastifyRequest, reply: FastifyReply) => {
     try {
       const { data } = req.query as any
@@ -70,7 +71,6 @@ export async function agendamentosRoutes(app: FastifyInstance) {
       const { id } = req.params as any;
       const { status } = req.body as any; 
       
-      // Log de depuração para verificar o que chega no servidor
       console.log(`[LOG] Atualizando status do agendamento ${id} para: ${status}`);
 
       if (!status) {
@@ -94,9 +94,7 @@ export async function agendamentosRoutes(app: FastifyInstance) {
     }
   });
 
-  // ==========================================
   // CHECKOUT COMPLETO (FINALIZAR COM PAGAMENTO/FIADO)
-  // ==========================================
   app.post('/agendamentos/:id/checkout', async (req: FastifyRequest, reply: FastifyReply) => {
     try {
       const { id } = req.params as any;
@@ -156,6 +154,23 @@ export async function agendamentosRoutes(app: FastifyInstance) {
         return reply.status(404).send({ 
           success: false, 
           error: { code: 'NAO_ENCONTRADO', message: 'Profissional não encontrado.' } 
+        })
+      }
+      throw e
+    }
+  })
+
+  // --- NOVA ROTA: Excluir bloqueio ---
+  app.delete('/bloqueios/:id', async (req: FastifyRequest, reply: FastifyReply) => {
+    try {
+      const { id } = req.params as any
+      await excluirBloqueio(req.usuario.empresaId, id)
+      return reply.send({ success: true, message: 'Bloqueio removido com sucesso.' })
+    } catch (e: any) {
+      if (e.message === 'BLOQUEIO_NAO_ENCONTRADO') {
+        return reply.status(404).send({ 
+          success: false, 
+          error: { code: 'NAO_ENCONTRADO', message: 'Bloqueio não encontrado.' } 
         })
       }
       throw e

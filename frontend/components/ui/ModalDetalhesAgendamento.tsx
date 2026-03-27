@@ -63,14 +63,13 @@ export default function ModalDetalhesAgendamento({ isOpen, onClose, agendamento 
   const mutationCheckout = useMutation({
     mutationFn: () => finalizarCheckoutAgendamento(agendamento.id, {
       forma_pagamento: formaPagamento,
-      // Enviamos o preço que foi editado na tela
       valor_servico: Number(precoServicoFinal),
       produtos_comanda: produtosComanda.map(p => ({
         id: p.id,
         quantidade: 1, 
         preco_venda: Number(p.preco_venda)
       }))
-    } as any), // CORREÇÃO: 'as any' silencia o erro de propriedade desconhecida no TypeScript
+    } as any),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['agendamentos'] });
       queryClient.invalidateQueries({ queryKey: ['estoque'] });
