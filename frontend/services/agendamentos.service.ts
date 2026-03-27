@@ -33,9 +33,12 @@ function extrairListaSegura(resposta: any): any[] {
 }
 
 // --- FUNÇÕES DE BUSCA ---
-export async function buscarAgendamentosDoDia(dataIso: string): Promise<AgendamentoResponse[]> {
+
+export async function buscarAgendamentosDoDia(dataIso: string): Promise<any> {
   const response = await api.get('/agendamentos', { params: { data: dataIso } })
-  return extrairListaSegura(response.data)
+  // CORREÇÃO: Não usamos mais o "Caça-Arrays" aqui, pois o backend agora 
+  // devolve um objeto { agendamentos: [], bloqueios: [] }
+  return response.data?.data || response.data;
 }
 
 export async function buscarClientes(): Promise<Cliente[]> {
@@ -54,6 +57,7 @@ export async function buscarProfissionais(): Promise<Profissional[]> {
 }
 
 // --- FUNÇÕES DE SALVAR ---
+
 // Nova função ensinando o frontend a salvar a cliente
 export async function criarCliente(dados: { nome: string; telefone?: string }): Promise<Cliente> {
   const response = await api.post('/clientes', dados)

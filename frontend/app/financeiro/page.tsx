@@ -79,8 +79,8 @@ export default function FinanceiroPage() {
       {/* CONTEÚDO PRINCIPAL */}
       <main className="flex-1 p-4 md:p-8 space-y-8 max-w-7xl mx-auto w-full animate-in fade-in slide-in-from-bottom-4 duration-500 pb-32">
         
-        {/* GRID DE MÉTRICAS RÁPIDAS */}
-        <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
+        {/* GRID DE MÉTRICAS RÁPIDAS (1 coluna no celular, 2 colunas no computador) */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
           
           {/* CARD DE ENTRADAS */}
           <Card className="p-4 md:p-6 border-l-4 border-status-success shadow-sm flex flex-col h-full">
@@ -95,21 +95,22 @@ export default function FinanceiroPage() {
             </div>
             
             <div className="mt-auto pt-4 space-y-1.5">
-              <div className="flex justify-between items-center text-micro font-bold border-t border-border-default/50 pt-3">
+              <div className="flex justify-between items-center text-small md:text-micro font-bold border-t border-border-default/50 pt-3">
                 <span className="text-text-secondary uppercase tracking-wider flex items-center gap-1.5">
-                  <Scissors size={12} className="text-status-success" /> Serviços
+                  <Scissors size={14} className="text-status-success" /> Serviços
                 </span>
-                <span className="text-text-primary">{formatarMoeda(entradasServicos)}</span>
+                <span className="text-text-primary font-black">{formatarMoeda(entradasServicos)}</span>
               </div>
-              <div className="flex justify-between items-center text-micro font-bold">
+              <div className="flex justify-between items-center text-small md:text-micro font-bold">
                 <span className="text-text-secondary uppercase tracking-wider flex items-center gap-1.5">
-                  <Package size={12} className="text-status-success" /> Produtos
+                  <Package size={14} className="text-status-success" /> Produtos
                 </span>
-                <span className="text-text-primary">{formatarMoeda(entradasProdutos)}</span>
+                <span className="text-text-primary font-black">{formatarMoeda(entradasProdutos)}</span>
               </div>
             </div>
           </Card>
           
+          {/* CARD DE SAÍDAS */}
           <Card className="p-4 md:p-6 border-l-4 border-status-error shadow-sm flex flex-col h-full">
             <div>
               <div className="flex items-center gap-2 text-status-error mb-2">
@@ -120,7 +121,7 @@ export default function FinanceiroPage() {
                 {formatarMoeda(saidas)}
               </p>
             </div>
-            <div className="mt-auto pt-4 space-y-1.5 opacity-0 pointer-events-none">
+            <div className="mt-auto pt-4 space-y-1.5 opacity-0 pointer-events-none hidden md:block">
               <div className="flex justify-between items-center text-micro font-bold border-t border-transparent pt-3">
                 <span>Espaçador</span><span>R$ 0,00</span>
               </div>
@@ -130,8 +131,8 @@ export default function FinanceiroPage() {
             </div>
           </Card>
 
-          {/* DESTAQUE DE SALDO DO DIA */}
-          <Card className="col-span-2 lg:col-span-1 p-6 md:p-8 flex items-center justify-between border-2 border-dashed border-border-default shadow-inner h-full bg-bg-default/40">
+          {/* DESTAQUE DE SALDO DO DIA (No computador pega as duas colunas: md:col-span-2) */}
+          <Card className="md:col-span-2 p-6 md:p-8 flex items-center justify-between border-2 border-dashed border-border-default shadow-inner h-full bg-bg-default/40">
             <div className="overflow-hidden pr-2">
               <p className="text-small font-bold text-text-secondary uppercase tracking-widest mb-1">Saldo do Dia</p>
               <p className={`text-3xl md:text-4xl font-black tracking-tighter truncate ${saldo >= 0 ? 'text-status-success' : 'text-status-error'}`} title={formatarMoeda(saldo)}>
@@ -195,7 +196,7 @@ export default function FinanceiroPage() {
       {/* BOTÃO ADICIONAR (FAB) */}
       <button 
         onClick={() => setModalAberto(true)}
-        className="fixed bottom-24 right-6 w-14 h-14 bg-primary-action text-white rounded-2xl shadow-lg flex items-center justify-center hover:scale-105 active:scale-95 transition-all z-[1001]"
+        className="fixed bottom-24 right-6 w-14 h-14 bg-primary-action text-white rounded-2xl shadow-lg flex items-center justify-center hover:scale-105 active:scale-95 transition-all z-[990]"
         title="Novo Lançamento"
       >
         <Plus size={28} strokeWidth={3} className="text-white" />
