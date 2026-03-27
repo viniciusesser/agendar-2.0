@@ -97,6 +97,29 @@ export async function login(email: string, senha: string) {
     throw new Error('CREDENCIAIS_INVALIDAS')
   }
 
+  // --- VACINA DE AUTO-REPARO ---
+  // Verifica se o usuário logado tem um perfil criado na tabela de profissionais
+  const profissionalExiste = await prisma.ag_profissionais.findFirst({
+    where: { 
+      usuario_id: usuario.id, 
+      empresa_id: usuario.empresa_id, 
+      deleted_at: null 
+    }
+  })
+
+  // Se não tem (caso de contas antigas), cria silenciosamente agora
+  if (!profissionalExiste) {
+    await prisma.ag_profissionais.create({
+      data: {
+        empresa_id: usuario.empresa_id,
+        usuario_id: usuario.id,
+        nome: usuario.nome,
+      }
+    })
+    console.log(`[AUTO-REPARO] Perfil de profissional criado para o usuário: ${usuario.nome}`)
+  }
+  // -----------------------------
+
   const token = jwt.sign(
     {
       userId: usuario.id,
