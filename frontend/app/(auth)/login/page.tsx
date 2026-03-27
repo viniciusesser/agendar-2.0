@@ -1,8 +1,8 @@
 "use client"
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import Image from 'next/image' // IMPORTAÇÃO DO COMPONENTE DE IMAGEM DO NEXT.JS
+import Image from 'next/image'
 import { useAuthStore } from '@/store/auth.store'
 import { login } from '@/services/auth.service'
 import { Button } from '@/components/ui/Button'
@@ -11,12 +11,22 @@ import { Card } from '@/components/ui/Card'
 
 export default function LoginPage() {
   const router = useRouter()
-  const { setAuth } = useAuthStore()
+  // Puxamos também o 'token' da nossa loja persistente
+  const { setAuth, token } = useAuthStore()
 
   const [email, setEmail] = useState('')
   const [senha, setSenha] = useState('')
   const [erro, setErro] = useState('')
   const [carregando, setCarregando] = useState(false)
+
+  // --- O LEÃO DE CHÁCARA ---
+  // Se a tela de login abrir, mas o celular já tiver a chave guardada,
+  // manda o usuário direto para a agenda sem nem mostrar os campos.
+  useEffect(() => {
+    if (token) {
+      router.replace('/agenda')
+    }
+  }, [token, router])
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault()
@@ -35,8 +45,9 @@ export default function LoginPage() {
       localStorage.setItem('agendar_token', dados.token)
       localStorage.setItem('agendar_usuario', JSON.stringify(dados.usuario))
 
-      // 4. Redireciona para o local correto
-      router.push('/agenda') // Mudamos de '/dashboard' para '/agenda'
+      // 4. Redireciona para o local correto (MUDAMOS PARA REPLACE!)
+      // O replace apaga o /login do histórico, impedindo que o botão "voltar" traga pra cá.
+      router.replace('/agenda') 
       
     } catch (err: any) {
       console.error("Erro no login:", err)
@@ -47,6 +58,9 @@ export default function LoginPage() {
     }
   }
 
+  // Se já tiver token, a tela fica em branco por 1 milissegundo enquanto o vigia te redireciona
+  if (token) return null; 
+
   return (
     <div className="min-h-screen bg-bg-default md:bg-neutral-50 flex items-center justify-center p-4 sm:p-8 antialiased">
       
@@ -54,14 +68,13 @@ export default function LoginPage() {
         
         {/* === ÁREA DA LOGO ATUALIZADA === */}
         <div className="text-center mb-8 md:mb-10 flex flex-col items-center">
-          {/* O componente Image do Next.js é super otimizado */}
           <Image 
-             src="/logo.png" // Caminho relativo dentro da pasta public
+             src="/logo.png"
              alt="Logo Agendar" 
-             width={250} // Largura desejada em pixels
-             height={80} // Altura aproximada (o Next.js ajusta)
-             className="mb-2 drop-shadow-sm h-auto w-auto" // Mantém a proporção
-             priority // Carrega essa imagem com prioridade
+             width={250}
+             height={80}
+             className="mb-2 drop-shadow-sm h-auto w-auto"
+             priority
           />
           <p className="text-text-secondary text-body font-medium tracking-wide">
             Gestão para salões de beleza
