@@ -35,12 +35,12 @@ export const Modal = ({ isOpen, onClose, title, children }: ModalProps) => {
   if (!isOpen) return null;
 
   return (
-    // Fundo escuro (Overlay)
-    <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 transition-opacity">
+    // Fundo escuro (Overlay) - Z-index elevado para 9999 para cobrir FABs e BottomNav
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 sm:p-6 transition-opacity">
       
-      {/* O Card Branco do Modal */}
+      {/* O Card Branco do Modal - Altura máxima ajustada para 85vh para respiro no mobile */}
       <div 
-        className="bg-surface w-full max-w-[480px] rounded-xl shadow-soft p-6 transform transition-all scale-100 opacity-100 flex flex-col max-h-[90vh]"
+        className="bg-surface w-full max-w-[480px] rounded-xl shadow-soft p-5 sm:p-6 transform transition-all scale-100 opacity-100 flex flex-col max-h-[85vh]"
         role="dialog"
         aria-modal="true"
       >
@@ -48,14 +48,14 @@ export const Modal = ({ isOpen, onClose, title, children }: ModalProps) => {
         {/* Cabeçalho do Modal */}
         <div className="flex justify-between items-center mb-4 shrink-0">
           {title ? (
-            <h2 className="text-title font-bold text-text-primary">{title}</h2>
+            <h2 className="text-title font-bold text-text-primary pr-4">{title}</h2>
           ) : (
             <div></div> // Espaçador caso não tenha título
           )}
           
           <button 
             onClick={onClose} 
-            className="p-2 hover:bg-neutral-50 rounded-full transition-colors text-text-secondary hover:text-text-primary active:scale-95"
+            className="p-2 hover:bg-neutral-50 rounded-full transition-colors text-text-secondary hover:text-text-primary active:scale-95 shrink-0"
             aria-label="Fechar janela"
           >
             <X size={20} />
@@ -63,7 +63,8 @@ export const Modal = ({ isOpen, onClose, title, children }: ModalProps) => {
         </div>
 
         {/* Conteúdo dinâmico com scroll interno se ficar muito grande */}
-        <div className="overflow-y-auto hide-scrollbar flex-1">
+        {/* Adicionado um pb-2 para o último elemento não colar no fundo da caixa */}
+        <div className="overflow-y-auto hide-scrollbar flex-1 pb-2">
           {children}
         </div>
 
