@@ -5,7 +5,7 @@ import { prisma } from '../lib/prisma'
 export async function masterRoutes(app: FastifyInstance) {
   app.addHook('preHandler', autenticarMaster)
 
-  // ─── LISTAR TODOS OS SALÕES (com usuários) ────────────────────────────
+  // LISTAR TODOS OS SALOES (com usuarios)
   app.get('/master/saloes', async (req: FastifyRequest, reply: FastifyReply) => {
     const saloes = await prisma.ag_empresas.findMany({
       where: { deleted_at: null },
@@ -18,7 +18,10 @@ export async function masterRoutes(app: FastifyInstance) {
         ativo: true,
         criado_em: true,
         _count: {
-          select: { usuarios: true, agendamentos: true },
+          select: {
+            usuarios: { where: { deleted_at: null, ativo: true } },
+            agendamentos: true,
+          },
         },
         usuarios: {
           where: { deleted_at: null },
@@ -39,7 +42,7 @@ export async function masterRoutes(app: FastifyInstance) {
     return reply.send({ success: true, data: saloes })
   })
 
-  // ─── ATIVAR / BLOQUEAR / EDITAR PLANO ────────────────────────────────
+  // ATIVAR / BLOQUEAR / EDITAR PLANO DO SALAO
   app.patch('/master/saloes/:id', async (req: FastifyRequest, reply: FastifyReply) => {
     const { id } = req.params as { id: string }
     const { ativo, plano, plano_validade } = req.body as {
@@ -52,7 +55,7 @@ export async function masterRoutes(app: FastifyInstance) {
     if (!empresa) {
       return reply.status(404).send({
         success: false,
-        error: { code: 'NAO_ENCONTRADO', message: 'Salão não encontrado.' },
+        error: { code: 'NAO_ENCONTRADO', message: 'Salao nao encontrado.' },
       })
     }
 
@@ -68,5 +71,37 @@ export async function masterRoutes(app: FastifyInstance) {
     })
 
     return reply.send({ success: true, data: atualizado })
+  })
+
+  // ATIVAR / BLOQUEAR USUARIO INDIVIDUAL
+  app.patch('/master/usuarios/:id', async (req: FastifyRequest, reply: FastifyReply) => {
+    const { id } = req.params as { id: string }
+    const { ativo } = req.body as { ativo: boolean }
+
+    const usuario = await prisma.ag_usuarios.findUnique({ where: { id } })
+    if (!usuario) {
+      return reply.status(404).send({
+        success: false,
+        error: { code: 'NAO_ENCONTRADO', message: 'Usuario nao encontrado.' },
+      })
+    }
+
+    await prisma.ag_usuarios.update({
+      where: { id },
+      data: {
+        ativo,
+        deleted_at: ativo ? null : usuario.deleted_at,
+      },
+    })
+
+    await prisma.ag_profissionais.updateMany({
+      where: { usuario_id: id },
+      data: {
+        ativo,
+        deleted_at: ativo ? null : new Date(),
+      },
+    })
+
+    return reply.send({ success: true })
   })
 }
