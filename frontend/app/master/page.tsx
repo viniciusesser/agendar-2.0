@@ -4,7 +4,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
   Loader2, CheckCircle2, XCircle, Wallet,
-  Users, Calendar, ShieldCheck, ShieldOff, CreditCard
+  Users, Calendar, ShieldCheck, ShieldOff, CreditCard, Lock
 } from "lucide-react";
 import { useState } from "react";
 import { Card } from "@/components/ui/Card";
@@ -13,7 +13,7 @@ import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { buscarSaloesMaster, atualizarSalao, type Salao } from "@/services/master.service";
 
-// ─── PLANOS DISPONÍVEIS ────────────────────────────────────────────────────
+// ─── PLANOS ───────────────────────────────────────────────────────────────
 const PLANOS = ['free', 'basic', 'pro', 'vitrine'] as const
 
 const badgePlano: Record<string, 'default' | 'success' | 'warning' | 'error'> = {
@@ -23,7 +23,68 @@ const badgePlano: Record<string, 'default' | 'success' | 'warning' | 'error'> = 
   vitrine: 'success',
 }
 
-// ─── MODAL DE EDIÇÃO ───────────────────────────────────────────────────────
+// ─── TELA DE SENHA ────────────────────────────────────────────────────────
+function TelaSenha({ onAutenticado }: { onAutenticado: () => void }) {
+  const [senha, setSenha] = useState('')
+  const [erro, setErro] = useState(false)
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    const senhaCorreta = process.env.NEXT_PUBLIC_MASTER_PASSWORD
+    if (senha === senhaCorreta) {
+      // Salva na sessionStorage — some ao fechar o navegador
+      sessionStorage.setItem('master_auth', '1')
+      onAutenticado()
+    } else {
+      setErro(true)
+      setSenha('')
+    }
+  }
+
+  return (
+    <div className="min-h-screen bg-bg-default flex items-center justify-center p-4 antialiased">
+      <div className="w-full max-w-[360px] animate-in fade-in zoom-in duration-300">
+        <Card className="p-8 space-y-6">
+          <div className="flex flex-col items-center gap-3 text-center">
+            <div className="w-14 h-14 bg-primary-50 rounded-2xl flex items-center justify-center">
+              <Lock size={26} strokeWidth={2.5} className="text-primary-action" />
+            </div>
+            <div>
+              <h1 className="text-title font-bold text-primary-action">Área Restrita</h1>
+              <p className="text-small text-text-secondary font-medium mt-1">
+                Painel Master · Agendar 2.0
+              </p>
+            </div>
+          </div>
+
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <Input
+              type="password"
+              label="SENHA DE ACESSO"
+              placeholder="••••••••"
+              value={senha}
+              onChange={e => { setSenha(e.target.value); setErro(false) }}
+              autoFocus
+              required
+            />
+
+            {erro && (
+              <p className="text-small font-bold text-status-error text-center">
+                Senha incorreta. Tente novamente.
+              </p>
+            )}
+
+            <Button type="submit" fullWidth className="h-11">
+              Entrar
+            </Button>
+          </form>
+        </Card>
+      </div>
+    </div>
+  )
+}
+
+// ─── MODAL DE EDIÇÃO DE PLANO ─────────────────────────────────────────────
 interface ModalEdicaoProps {
   salao: Salao
   onClose: () => void
@@ -91,8 +152,8 @@ function ModalEdicao({ salao, onClose }: ModalEdicaoProps) {
   )
 }
 
-// ─── PÁGINA PRINCIPAL ──────────────────────────────────────────────────────
-export default function MasterDashboard() {
+// ─── PAINEL PRINCIPAL ─────────────────────────────────────────────────────
+function PainelMaster() {
   const queryClient = useQueryClient()
   const [salaoEditando, setSalaoEditando] = useState<Salao | null>(null)
 
@@ -106,7 +167,7 @@ export default function MasterDashboard() {
       atualizarSalao(id, { ativo }),
     onSuccess: (_, { ativo }) => {
       queryClient.invalidateQueries({ queryKey: ['master-saloes'] })
-      toast.success(ativo ? 'Acesso liberado com sucesso!' : 'Acesso bloqueado.')
+      toast.success(ativo ? 'Acesso liberado!' : 'Acesso bloqueado.')
     },
     onError: () => toast.error('Erro ao atualizar status.'),
   })
@@ -119,7 +180,7 @@ export default function MasterDashboard() {
     return acc + (s.ativo ? (tabela[s.plano] ?? 0) : 0)
   }, 0)
 
-  const totalAtivos   = saloes.filter(s => s.ativo).length
+  const totalAtivos    = saloes.filter(s => s.ativo).length
   const totalBloqueados = saloes.filter(s => !s.ativo).length
 
   return (
@@ -194,13 +255,11 @@ export default function MasterDashboard() {
                   return (
                     <tr key={salao.id} className="hover:bg-neutral-50 transition-colors">
 
-                      {/* NOME */}
                       <td className="p-4">
                         <p className="text-body font-black text-text-primary">{salao.nome}</p>
                         <p className="text-micro text-text-secondary">{salao.telefone || '—'}</p>
                       </td>
 
-                      {/* USO */}
                       <td className="p-4">
                         <span className="flex items-center gap-1 text-micro text-text-secondary font-bold">
                           <Users size={12} /> {salao._count.usuarios} usuários
@@ -210,14 +269,12 @@ export default function MasterDashboard() {
                         </span>
                       </td>
 
-                      {/* PLANO */}
                       <td className="p-4">
                         <Badge variant={badgePlano[salao.plano] ?? 'default'} className="uppercase">
                           {salao.plano}
                         </Badge>
                       </td>
 
-                      {/* VALIDADE */}
                       <td className="p-4">
                         {salao.plano_validade ? (
                           <span className={`text-micro font-bold ${vencido ? 'text-status-error' : 'text-text-secondary'}`}>
@@ -229,7 +286,6 @@ export default function MasterDashboard() {
                         )}
                       </td>
 
-                      {/* STATUS */}
                       <td className="p-4">
                         {salao.ativo ? (
                           <span className="flex items-center gap-1 text-status-success text-micro font-bold uppercase">
@@ -242,10 +298,8 @@ export default function MasterDashboard() {
                         )}
                       </td>
 
-                      {/* AÇÕES */}
                       <td className="p-4">
                         <div className="flex items-center justify-end gap-2">
-                          {/* EDITAR PLANO */}
                           <button
                             onClick={() => setSalaoEditando(salao)}
                             className="p-2 rounded-lg text-text-secondary hover:text-primary-action hover:bg-primary-50 transition-all"
@@ -254,7 +308,6 @@ export default function MasterDashboard() {
                             <CreditCard size={16} strokeWidth={2.5} />
                           </button>
 
-                          {/* BLOQUEAR / ATIVAR */}
                           <button
                             onClick={() => {
                               const acao = salao.ativo ? 'bloquear' : 'ativar'
@@ -286,7 +339,6 @@ export default function MasterDashboard() {
 
       </main>
 
-      {/* MODAL DE EDIÇÃO DE PLANO */}
       {salaoEditando && (
         <ModalEdicao
           salao={salaoEditando}
@@ -295,4 +347,19 @@ export default function MasterDashboard() {
       )}
     </div>
   )
+}
+
+// ─── EXPORTAÇÃO PRINCIPAL — decide o que renderizar ───────────────────────
+export default function MasterPage() {
+  // Checa se já autenticou nesta sessão do navegador
+  const [autenticado, setAutenticado] = useState(() => {
+    if (typeof window === 'undefined') return false
+    return sessionStorage.getItem('master_auth') === '1'
+  })
+
+  if (!autenticado) {
+    return <TelaSenha onAutenticado={() => setAutenticado(true)} />
+  }
+
+  return <PainelMaster />
 }
