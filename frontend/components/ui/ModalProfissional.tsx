@@ -9,6 +9,7 @@ import { criarProfissional, editarProfissional, excluirProfissional } from "@/se
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Modal } from "@/components/ui/Modal";
+import { toast } from 'sonner'
 
 interface ModalProfissionalProps {
   isOpen: boolean;
@@ -71,13 +72,12 @@ export default function ModalProfissional({ isOpen, onClose, profissional }: Mod
       queryClient.invalidateQueries({ queryKey: ['profissionais'] });
       onClose();
     },
-    onError: (error: any) => {
-      // TRATAMENTO DE ERRO MELHORADO
-      const msg = error.response?.data?.error?.message;
-      if (msg?.includes("foreign key") || msg?.includes("agendamentos")) {
-        alert("Não é possível APAGAR esta profissional porque ela já possui atendimentos registrados. Recomendamos apenas DESATIVAR o perfil para que ela suma da agenda mantendo o histórico.");
+    onError: (err: any) => {
+      const code = err.response?.data?.error?.code
+      if (code === 'LIMITE_PLANO_ATINGIDO') {
+        toast.error('Limite de profissionais atingido. Fale conosco para fazer upgrade do plano.')
       } else {
-        alert(msg || "Erro ao tentar excluir.");
+        toast.error('Erro ao salvar dados da profissional.')
       }
     }
   });
