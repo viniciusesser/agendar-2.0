@@ -1,13 +1,19 @@
 import { FastifyInstance } from 'fastify'
-import { cadastroController, loginController, alterarSenhaController } from '../controllers/auth.controller'
+import {
+  cadastroController,
+  loginController,
+  refreshController,
+  alterarSenhaController,
+} from '../controllers/auth.controller'
 import { autenticar } from '../middlewares/auth.middleware'
 
 export async function authRoutes(app: FastifyInstance) {
-  // Rotas Públicas
+  // ─── Rotas Públicas ───────────────────────────────────────────────────
   app.post('/auth/cadastro', cadastroController)
-  app.post('/auth/login', loginController)
+  app.post('/auth/login',    loginController)
+  app.post('/auth/refresh',  refreshController) // ← usa cookie httpOnly
 
-  // Rotas Protegidas (Exigem Token)
+  // ─── Rotas Protegidas ─────────────────────────────────────────────────
   app.register(async (rotasProtegidas) => {
     rotasProtegidas.addHook('preHandler', autenticar)
 

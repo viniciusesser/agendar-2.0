@@ -1,6 +1,7 @@
 import Fastify from 'fastify'
 import { FastifyError } from 'fastify'
 import cors from '@fastify/cors'
+import fastifyCookie from '@fastify/cookie'
 import 'dotenv/config'
 import { authRoutes } from './routes/auth.routes'
 import { servicosRoutes } from './routes/agenda/servicos.routes'
@@ -17,10 +18,16 @@ import { iniciarCronJobs } from './jobs/notificacoes.cron'
 
 const app = Fastify({ logger: true })
 
+// ─── CORS ─────────────────────────────────────────────────────────────────
 app.register(cors, {
   origin: ['http://localhost:3000', 'https://agendar-2-0.vercel.app'],
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+})
+
+// ─── COOKIES (necessário para refresh token httpOnly) ─────────────────────
+app.register(fastifyCookie, {
+  secret: process.env.JWT_REFRESH_SECRET!, // assina os cookies
 })
 
 // =========================================================================
@@ -75,15 +82,14 @@ app.register(dashboardRoutes,     { prefix: '/api/agendar' })
 app.register(profissionaisRoutes, { prefix: '/api/agendar' })
 app.register(configuracoesRoutes, { prefix: '/api/agendar' })
 app.register(masterRoutes,        { prefix: '/api/agendar' })
-app.register(pushRoutes,          { prefix: '/api/agendar' }) // ← ADICIONADO
-
+app.register(pushRoutes,          { prefix: '/api/agendar' })
 // =========================================================================
 
 const start = async () => {
   try {
     await app.listen({ port: 3333, host: '0.0.0.0' })
     console.log('🚀 Servidor rodando na porta 3333')
-    iniciarCronJobs() // ← Inicia o job das 6h após o servidor subir
+    iniciarCronJobs()
   } catch (err) {
     app.log.error(err)
     process.exit(1)

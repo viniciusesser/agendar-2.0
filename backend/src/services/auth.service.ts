@@ -2,7 +2,20 @@ import bcrypt from 'bcryptjs'
 import jwt from 'jsonwebtoken'
 import { prisma } from '../lib/prisma'
 
-const JWT_SECRET = process.env.JWT_SECRET!
+const JWT_SECRET         = process.env.JWT_SECRET!
+const JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET!
+
+// ─── HELPERS ──────────────────────────────────────────────────────────────
+
+function gerarAccessToken(userId: string, empresaId: string, perfil: string) {
+  return jwt.sign({ userId, empresaId, perfil }, JWT_SECRET, { expiresIn: '15m' })
+}
+
+function gerarRefreshToken(userId: string) {
+  return jwt.sign({ userId }, JWT_REFRESH_SECRET, { expiresIn: '30d' })
+}
+
+// ─── CADASTRO ─────────────────────────────────────────────────────────────
 
 export async function cadastrarEmpresa(dados: {
   nome_salao: string
@@ -14,19 +27,12 @@ export async function cadastrarEmpresa(dados: {
   const emailExiste = await prisma.ag_usuarios.findUnique({
     where: { email: dados.email },
   })
-
-  if (emailExiste) {
-    throw new Error('EMAIL_JA_CADASTRADO')
-  }
+  if (emailExiste) throw new Error('EMAIL_JA_CADASTRADO')
 
   const senha_hash = await bcrypt.hash(dados.senha, 10)
 
   const empresa = await prisma.ag_empresas.create({
-    data: {
-      nome: dados.nome_salao,
-      telefone: dados.telefone,
-      plano: 'free',
-    },
+    data: { nome: dados.nome_salao, telefone: dados.telefone, plano: 'free' },
   })
 
   const usuario = await prisma.ag_usuarios.create({
@@ -40,38 +46,21 @@ export async function cadastrarEmpresa(dados: {
   })
 
   await prisma.ag_profissionais.create({
-    data: {
-      empresa_id: empresa.id,
-      usuario_id: usuario.id,
-      nome: dados.nome_usuario,
-    },
+    data: { empresa_id: empresa.id, usuario_id: usuario.id, nome: dados.nome_usuario },
   })
 
-  const token = jwt.sign(
-    {
-      userId: usuario.id,
-      empresaId: empresa.id,
-      perfil: usuario.perfil,
-    },
-    JWT_SECRET,
-    { expiresIn: '8h' }
-  )
-
   return {
-    token,
+    token:        gerarAccessToken(usuario.id, empresa.id, usuario.perfil),
+    refreshToken: gerarRefreshToken(usuario.id),
     usuario: {
-      id: usuario.id,
-      nome: usuario.nome,
-      email: usuario.email,
-      perfil: usuario.perfil,
+      id: usuario.id, nome: usuario.nome,
+      email: usuario.email, perfil: usuario.perfil,
     },
-    empresa: {
-      id: empresa.id,
-      nome: empresa.nome,
-      plano: empresa.plano,
-    },
+    empresa: { id: empresa.id, nome: empresa.nome, plano: empresa.plano },
   }
 }
+
+// ─── LOGIN ────────────────────────────────────────────────────────────────
 
 export async function login(email: string, senha: string) {
   const usuario = await prisma.ag_usuarios.findUnique({
@@ -79,100 +68,74 @@ export async function login(email: string, senha: string) {
     include: { empresa: true },
   })
 
-  if (!usuario) {
-    throw new Error('CREDENCIAIS_INVALIDAS')
-  }
-
-  if (!usuario.ativo || usuario.deleted_at) {
-    throw new Error('USUARIO_INATIVO')
-  }
-
-  if (!usuario.empresa.ativo) {
-    throw new Error('EMPRESA_INATIVA')
-  }
+  if (!usuario)                          throw new Error('CREDENCIAIS_INVALIDAS')
+  if (!usuario.ativo || usuario.deleted_at) throw new Error('USUARIO_INATIVO')
+  if (!usuario.empresa.ativo)            throw new Error('EMPRESA_INATIVA')
 
   const senhaCorreta = await bcrypt.compare(senha, usuario.senha_hash)
+  if (!senhaCorreta) throw new Error('CREDENCIAIS_INVALIDAS')
 
-  if (!senhaCorreta) {
-    throw new Error('CREDENCIAIS_INVALIDAS')
-  }
-
-  // --- VACINA DE AUTO-REPARO ---
-  // Verifica se o usuário logado tem um perfil criado na tabela de profissionais
+  // Vacina de auto-reparo
   const profissionalExiste = await prisma.ag_profissionais.findFirst({
-    where: { 
-      usuario_id: usuario.id, 
-      empresa_id: usuario.empresa_id, 
-      deleted_at: null 
-    }
+    where: { usuario_id: usuario.id, empresa_id: usuario.empresa_id, deleted_at: null },
   })
-
-  // Se não tem (caso de contas antigas), cria silenciosamente agora
   if (!profissionalExiste) {
     await prisma.ag_profissionais.create({
-      data: {
-        empresa_id: usuario.empresa_id,
-        usuario_id: usuario.id,
-        nome: usuario.nome,
-      }
+      data: { empresa_id: usuario.empresa_id, usuario_id: usuario.id, nome: usuario.nome },
     })
-    console.log(`[AUTO-REPARO] Perfil de profissional criado para o usuário: ${usuario.nome}`)
+    console.log(`[AUTO-REPARO] Perfil criado para: ${usuario.nome}`)
   }
-  // -----------------------------
-
-  const token = jwt.sign(
-    {
-      userId: usuario.id,
-      empresaId: usuario.empresa_id,
-      perfil: usuario.perfil,
-    },
-    JWT_SECRET,
-    { expiresIn: '8h' }
-  )
 
   return {
-    token,
+    token:        gerarAccessToken(usuario.id, usuario.empresa_id, usuario.perfil),
+    refreshToken: gerarRefreshToken(usuario.id),
     usuario: {
-      id: usuario.id,
-      nome: usuario.nome,
-      email: usuario.email,
-      perfil: usuario.perfil,
+      id: usuario.id, nome: usuario.nome,
+      email: usuario.email, perfil: usuario.perfil,
     },
     empresa: {
-      id: usuario.empresa.id,
-      nome: usuario.empresa.nome,
-      plano: usuario.empresa.plano,
+      id: usuario.empresa.id, nome: usuario.empresa.nome, plano: usuario.empresa.plano,
     },
   }
 }
 
-/**
- * SERVIÇO: Alterar Senha
- * Verifica a senha atual antes de gerar o hash da nova senha e salvar.
- */
-export async function alterarSenha(userId: string, senhaAtual: string, novaSenha: string) {
-  // 1. Busca o usuário para pegar o hash atual
+// ─── REFRESH TOKEN ────────────────────────────────────────────────────────
+
+export async function refreshAccessToken(refreshToken: string) {
+  let payload: any
+  try {
+    payload = jwt.verify(refreshToken, JWT_REFRESH_SECRET)
+  } catch {
+    throw new Error('REFRESH_TOKEN_INVALIDO')
+  }
+
   const usuario = await prisma.ag_usuarios.findUnique({
-    where: { id: userId }
+    where: { id: payload.userId },
+    include: { empresa: true },
   })
 
-  if (!usuario) {
-    throw new Error('USUARIO_NAO_ENCONTRADO')
-  }
+  if (!usuario || !usuario.ativo || usuario.deleted_at) throw new Error('USUARIO_INATIVO')
+  if (!usuario.empresa.ativo) throw new Error('EMPRESA_INATIVA')
 
-  // 2. Compara a senha digitada como "atual" com a do banco
+  return {
+    token: gerarAccessToken(usuario.id, usuario.empresa_id, usuario.perfil),
+    // Retorna um novo refresh token (rotação — invalida o anterior implicitamente)
+    refreshToken: gerarRefreshToken(usuario.id),
+  }
+}
+
+// ─── ALTERAR SENHA ────────────────────────────────────────────────────────
+
+export async function alterarSenha(userId: string, senhaAtual: string, novaSenha: string) {
+  const usuario = await prisma.ag_usuarios.findUnique({ where: { id: userId } })
+  if (!usuario) throw new Error('USUARIO_NAO_ENCONTRADO')
+
   const senhaCorreta = await bcrypt.compare(senhaAtual, usuario.senha_hash)
+  if (!senhaCorreta) throw new Error('SENHA_ATUAL_INCORRETA')
 
-  if (!senhaCorreta) {
-    throw new Error('SENHA_ATUAL_INCORRETA')
-  }
-
-  // 3. Gera o novo hash para a nova senha
   const nova_senha_hash = await bcrypt.hash(novaSenha, 10)
-
-  // 4. Atualiza no banco de dados
   return prisma.ag_usuarios.update({
     where: { id: userId },
-    data: { senha_hash: nova_senha_hash }
+    data: { senha_hash: nova_senha_hash },
   })
 }
