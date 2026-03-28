@@ -3,10 +3,9 @@ import { autenticarMaster } from '../middlewares/master.middleware'
 import { prisma } from '../lib/prisma'
 
 export async function masterRoutes(app: FastifyInstance) {
-  // Todas as rotas master exigem a chave secreta
   app.addHook('preHandler', autenticarMaster)
 
-  // ─── LISTAR TODOS OS SALÕES ────────────────────────────────────────────────
+  // ─── LISTAR TODOS OS SALÕES (com usuários) ────────────────────────────
   app.get('/master/saloes', async (req: FastifyRequest, reply: FastifyReply) => {
     const saloes = await prisma.ag_empresas.findMany({
       where: { deleted_at: null },
@@ -21,6 +20,18 @@ export async function masterRoutes(app: FastifyInstance) {
         _count: {
           select: { usuarios: true, agendamentos: true },
         },
+        usuarios: {
+          where: { deleted_at: null },
+          select: {
+            id: true,
+            nome: true,
+            email: true,
+            perfil: true,
+            ativo: true,
+            criado_em: true,
+          },
+          orderBy: { criado_em: 'asc' },
+        },
       },
       orderBy: { criado_em: 'desc' },
     })
@@ -28,7 +39,7 @@ export async function masterRoutes(app: FastifyInstance) {
     return reply.send({ success: true, data: saloes })
   })
 
-  // ─── ATIVAR / BLOQUEAR ACESSO ─────────────────────────────────────────────
+  // ─── ATIVAR / BLOQUEAR / EDITAR PLANO ────────────────────────────────
   app.patch('/master/saloes/:id', async (req: FastifyRequest, reply: FastifyReply) => {
     const { id } = req.params as { id: string }
     const { ativo, plano, plano_validade } = req.body as {

@@ -1,10 +1,15 @@
 import api from '@/lib/api'
 
-// A chave secreta vive no .env.local do frontend — NUNCA exposta no código
-const MASTER_KEY = process.env.NEXT_PUBLIC_MASTER_KEY || ''
+const masterHeaders = { 'x-master-key': process.env.NEXT_PUBLIC_MASTER_KEY || '' }
 
-// Header de autenticação injetado em todas as chamadas master
-const masterHeaders = { 'x-master-key': MASTER_KEY }
+export interface UsuarioSalao {
+  id: string
+  nome: string
+  email: string
+  perfil: string
+  ativo: boolean
+  criado_em: string
+}
 
 export interface Salao {
   id: string
@@ -14,6 +19,7 @@ export interface Salao {
   plano_validade: string | null
   ativo: boolean
   criado_em: string
+  usuarios: UsuarioSalao[]
   _count: {
     usuarios: number
     agendamentos: number
