@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 
+
 interface Feriado {
   date: string       // "2026-01-01"
   name: string       // "Confraternização Universal"
