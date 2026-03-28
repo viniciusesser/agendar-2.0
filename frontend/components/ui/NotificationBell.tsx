@@ -12,111 +12,181 @@ export default function NotificationBell() {
   const [foiVisto, setFoiVisto] = useState(false);
   const [ultimoTotal, setUltimoTotal] = useState(0);
 
+  const hoje = new Date().toISOString().split('T')[0];
+
   useEffect(() => {
     setMounted(true);
-    const vistoHoje = localStorage.getItem(`alertas_vistos_${new Date().toISOString().split('T')[0]}`);
-    if (vistoHoje) setFoiVisto(true);
-  }, []);
+    // Verifica se os alertas de hoje já foram vistos
+    const vistoHoje = localStorage.getItem(`alertas_vistos_${hoje}`)
+    if (vistoHoje) setFoiVisto(true)
+  }, [hoje])
 
-  // Adicionado <any> para resolver o erro de tipagem do TypeScript, e removido o onSuccess
   const { data: dashData } = useQuery<any>({
     queryKey: ['alertas-notificacao'],
-    queryFn: () => buscarDashboardDia(new Date().toISOString().split('T')[0]),
-    enabled: mounted, 
-    refetchInterval: 1000 * 60 * 5, // A cada 5 minutos
-  });
+    queryFn: () => buscarDashboardDia(hoje),
+    enabled: mounted,
+    staleTime: 1000 * 60 * 5,      // Dados válidos por 5 minutos
+    refetchInterval: 1000 * 60 * 5, // Revalida a cada 5 minutos
+  })
 
-  const alertas = dashData?.alertas || { aniversariantes: [], estoque_baixo: [], cobrancas: [] };
-  const total = (alertas.aniversariantes?.length || 0) + 
-                (alertas.estoque_baixo?.length || 0) + 
-                (alertas.cobrancas?.length || 0);
+  const aniversariantes = dashData?.alertas?.aniversariantes ?? []
+  const estoqueBaixo    = dashData?.alertas?.estoque_baixo ?? []
 
-  // Efeito alternativo para voltar a piscar caso chegue uma notificação nova (ex: total subiu de 1 para 2)
+  // ✅ CORRIGIDO: sem "cobrancas" que nunca vinha do backend
+  const total = aniversariantes.length + estoqueBaixo.length
+
+  // Volta a piscar se chegarem novas notificações após a abertura
   useEffect(() => {
     if (total > ultimoTotal && ultimoTotal > 0) {
-      setFoiVisto(false); // Volta a piscar se o problema aumentar
+      setFoiVisto(false)
     }
-    setUltimoTotal(total);
-  }, [total, ultimoTotal]);
+    setUltimoTotal(total)
+  }, [total, ultimoTotal])
 
-  if (!mounted) return <Bell className="text-primary-action opacity-20" size={24} />;
+  // Não renderiza nada no SSR para evitar hidration mismatch
+  if (!mounted) {
+    return (
+      <div className="p-2">
+        <Bell size={22} strokeWidth={2.5} className="text-primary-action opacity-30" />
+      </div>
+    )
+  }
 
   const handleToggle = (e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    
+    e.preventDefault()
+    e.stopPropagation()
+
     if (!isOpen) {
-      setFoiVisto(true);
-      localStorage.setItem(`alertas_vistos_${new Date().toISOString().split('T')[0]}`, 'true');
+      setFoiVisto(true)
+      localStorage.setItem(`alertas_vistos_${hoje}`, 'true')
     }
-    
-    setIsOpen(!isOpen);
-  };
+
+    setIsOpen(prev => !prev)
+  }
 
   return (
     <div className="relative inline-block">
-      <button 
+
+      {/* BOTÃO DO SINO */}
+      <button
         onClick={handleToggle}
         className="relative p-2 text-primary-action hover:bg-primary-50 rounded-full transition-all active:scale-90"
         style={{ zIndex: 1100 }}
+        title="Notificações"
       >
-        <Bell size={24} strokeWidth={2.5} />
-        
+        <Bell size={22} strokeWidth={2.5} />
+
+        {/* BADGE DE CONTAGEM */}
         {total > 0 && (
-          <span className={`absolute top-1 right-1 flex h-5 w-5 items-center justify-center bg-status-error text-white text-[10px] font-black rounded-full border-2 border-surface shadow-sm transition-all ${!foiVisto ? 'animate-bounce' : 'opacity-90'}`}>
-            {total}
+          <span
+            className={`absolute top-1 right-1 flex h-5 w-5 items-center justify-center bg-status-error text-white text-[10px] font-black rounded-full border-2 border-surface shadow-sm transition-all ${
+              !foiVisto ? 'animate-bounce' : 'opacity-90'
+            }`}
+          >
+            {total > 9 ? '9+' : total}
           </span>
         )}
       </button>
 
+      {/* PAINEL DE NOTIFICAÇÕES */}
       {isOpen && (
         <>
-          <div className="fixed inset-0 z-[1050]" onClick={() => setIsOpen(false)} />
-          
+          {/* OVERLAY para fechar ao clicar fora */}
+          <div
+            className="fixed inset-0 z-[1050]"
+            onClick={() => setIsOpen(false)}
+          />
+
           <div className="absolute right-0 mt-3 w-[300px] bg-surface border border-border-default rounded-xl shadow-xl z-[1100] overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
+
+            {/* CABEÇALHO DO PAINEL */}
             <div className="p-4 border-b border-border-default bg-bg-default/50 flex justify-between items-center">
-              <h3 className="text-[10px] font-black text-text-primary uppercase tracking-widest">Central de Avisos</h3>
-              <button onClick={() => setIsOpen(false)} className="text-text-muted hover:text-status-error transition-colors">
+              <h3 className="text-micro font-black text-text-primary uppercase tracking-widest">
+                Central de Avisos
+                {total > 0 && (
+                  <span className="ml-2 bg-status-error text-white text-[10px] font-black px-1.5 py-0.5 rounded-full">
+                    {total}
+                  </span>
+                )}
+              </h3>
+              <button
+                onClick={() => setIsOpen(false)}
+                className="text-text-muted hover:text-status-error transition-colors p-1 rounded-md"
+              >
                 <X size={16} />
               </button>
             </div>
 
-            <div className="max-h-[350px] overflow-y-auto divide-y divide-border-default hide-scrollbar">
+            {/* LISTA DE NOTIFICAÇÕES */}
+            <div className="max-h-[380px] overflow-y-auto divide-y divide-border-default">
+
               {total === 0 ? (
-                <div className="p-8 text-center text-small text-text-muted italic">Tudo em dia por aqui!</div>
+                <div className="p-10 text-center flex flex-col items-center gap-3">
+                  <Bell size={32} strokeWidth={1.5} className="text-text-muted opacity-30" />
+                  <p className="text-small text-text-muted font-medium italic">
+                    Tudo em dia por aqui!
+                  </p>
+                </div>
               ) : (
                 <>
-                  {/* ANIVERSARIANTES */}
-                  {alertas.aniversariantes?.map((item: any) => (
-                    <div key={`niver-${item.id}`} className="p-4 hover:bg-bg-default transition-colors">
-                      <div className="flex gap-3">
-                        <Cake size={18} className="text-status-success shrink-0" />
-                        <div className="flex-1">
-                          <p className="text-small text-text-primary leading-tight">
-                            Aniversário de <span className="font-bold">{item.nome}</span>
+                  {/* SEÇÃO: ANIVERSARIANTES */}
+                  {aniversariantes.length > 0 && (
+                    <div className="px-4 pt-3 pb-1">
+                      <p className="text-micro font-black text-status-success uppercase tracking-widest flex items-center gap-1.5">
+                        <Cake size={12} /> Aniversariantes de Hoje
+                      </p>
+                    </div>
+                  )}
+                  {aniversariantes.map((item: any) => (
+                    <div key={`niver-${item.id}`} className="px-4 py-3 hover:bg-bg-default transition-colors">
+                      <div className="flex gap-3 items-start">
+                        <div className="w-8 h-8 rounded-full bg-status-success/10 flex items-center justify-center shrink-0">
+                          <Cake size={16} className="text-status-success" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-small font-bold text-text-primary leading-tight truncate">
+                            {item.nome}
                           </p>
-                          <Button 
-                            variant="ghost" 
-                            className="h-auto p-0 mt-2 text-micro text-primary-action font-black gap-1 hover:bg-transparent"
-                            onClick={() => window.open(`https://wa.me/55${item.telefone?.replace(/\D/g, '')}?text=Parabéns, ${item.nome}!`, '_blank')}
-                          >
-                            <MessageCircle size={12} /> ENVIAR PARABÉNS
-                          </Button>
+                          {item.telefone && (
+                            <button
+                              onClick={() =>
+                                window.open(
+                                  `https://wa.me/55${item.telefone.replace(/\D/g, '')}?text=${encodeURIComponent(`Feliz aniversário, ${item.nome}! 🎉`)}`,
+                                  '_blank'
+                                )
+                              }
+                              className="mt-1.5 flex items-center gap-1 text-micro font-black text-primary-action hover:opacity-70 transition-opacity"
+                            >
+                              <MessageCircle size={11} /> Enviar parabéns
+                            </button>
+                          )}
                         </div>
                       </div>
                     </div>
                   ))}
 
-                  {/* ESTOQUE */}
-                  {alertas.estoque_baixo?.map((item: any) => (
-                    <div key={`stock-${item.id}`} className="p-4 hover:bg-bg-default transition-colors">
-                      <div className="flex gap-3">
-                        <Package size={18} className="text-status-warning shrink-0" />
-                        <div className="flex-1">
-                          <p className="text-small text-text-primary leading-tight">
-                            Estoque baixo: <span className="font-bold">{item.nome}</span>
+                  {/* SEÇÃO: ESTOQUE BAIXO */}
+                  {estoqueBaixo.length > 0 && (
+                    <div className="px-4 pt-3 pb-1">
+                      <p className="text-micro font-black text-status-warning uppercase tracking-widest flex items-center gap-1.5">
+                        <Package size={12} /> Estoque em Alerta
+                      </p>
+                    </div>
+                  )}
+                  {estoqueBaixo.map((item: any) => (
+                    <div key={`stock-${item.id}`} className="px-4 py-3 hover:bg-bg-default transition-colors">
+                      <div className="flex gap-3 items-start">
+                        <div className="w-8 h-8 rounded-full bg-status-warning/10 flex items-center justify-center shrink-0">
+                          <Package size={16} className="text-status-warning" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-small font-bold text-text-primary leading-tight truncate">
+                            {item.nome}
                           </p>
-                          <p className="text-micro text-text-secondary mt-0.5 font-bold">Restam apenas {item.quantidade_atual} un.</p>
+                          <p className="text-micro text-status-warning font-bold mt-0.5">
+                            {/* ✅ CORRIGIDO: era quantidade_atual, o backend retorna quantidade */}
+                            Restam {Number(item.quantidade)} {Number(item.quantidade) === 1 ? 'unidade' : 'unidades'}
+                          </p>
                         </div>
                       </div>
                     </div>
@@ -124,15 +194,22 @@ export default function NotificationBell() {
                 </>
               )}
             </div>
-            
+
+            {/* RODAPÉ */}
             <div className="p-3 bg-bg-default/30 border-t border-border-default">
-              <Button variant="ghost" fullWidth onClick={() => setIsOpen(false)} className="h-10 text-micro font-bold text-text-secondary">
-                FECHAR PAINEL
+              <Button
+                variant="ghost"
+                fullWidth
+                onClick={() => setIsOpen(false)}
+                className="h-9 text-micro font-bold text-text-secondary"
+              >
+                Fechar
               </Button>
             </div>
+
           </div>
         </>
       )}
     </div>
-  );
+  )
 }
