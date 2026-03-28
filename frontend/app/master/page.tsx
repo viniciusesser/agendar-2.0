@@ -1,72 +1,174 @@
 "use client";
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Loader2, CheckCircle2, XCircle, Wallet } from "lucide-react";
+import { toast } from "sonner";
+import {
+  Loader2, CheckCircle2, XCircle, Wallet,
+  Users, Calendar, ShieldCheck, ShieldOff, CreditCard
+} from "lucide-react";
+import { useState } from "react";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
+import { Button } from "@/components/ui/Button";
+import { Input } from "@/components/ui/Input";
+import { buscarSaloesMaster, atualizarSalao, type Salao } from "@/services/master.service";
 
-// Importação dos serviços
-import { buscarSaloesMaster, atualizarStatusSalao } from "@/services/master.service";
+// ─── PLANOS DISPONÍVEIS ────────────────────────────────────────────────────
+const PLANOS = ['free', 'basic', 'pro', 'vitrine'] as const
 
-// Definição da estrutura do Salão para o TypeScript
-interface Salao {
-  id: string;
-  nome: string;
-  telefone: string;
-  plano: 'free' | 'basic' | 'pro' | 'vitrine';
-  ativo: boolean;
+const badgePlano: Record<string, 'default' | 'success' | 'warning' | 'error'> = {
+  free:    'default',
+  basic:   'default',
+  pro:     'success',
+  vitrine: 'success',
 }
 
-export default function MasterDashboard() {
-  const queryClient = useQueryClient();
+// ─── MODAL DE EDIÇÃO ───────────────────────────────────────────────────────
+interface ModalEdicaoProps {
+  salao: Salao
+  onClose: () => void
+}
 
-  // Tipagem adicionada aqui: <Salao[]>
-  const { data: saloes, isLoading } = useQuery<Salao[]>({
-    queryKey: ['master-saloes'],
-    queryFn: buscarSaloesMaster
-  });
+function ModalEdicao({ salao, onClose }: ModalEdicaoProps) {
+  const queryClient = useQueryClient()
+  const [plano, setPlano] = useState(salao.plano)
+  const [validade, setValidade] = useState(
+    salao.plano_validade ? salao.plano_validade.split('T')[0] : ''
+  )
 
   const mutation = useMutation({
-    mutationFn: ({ id, ativo }: { id: string, ativo: boolean }) => atualizarStatusSalao(id, ativo),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['master-saloes'] })
-  });
-
-  const formatarMoeda = (valor: number) => 
-    Number(valor).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+    mutationFn: () => atualizarSalao(salao.id, {
+      plano,
+      plano_validade: validade || null,
+    }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['master-saloes'] })
+      toast.success(`Plano de "${salao.nome}" atualizado!`)
+      onClose()
+    },
+    onError: () => toast.error('Erro ao atualizar plano.'),
+  })
 
   return (
-    <div className="min-h-screen bg-bg-default p-4 md:p-8 pb-24">
+    <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+      <Card className="w-full max-w-sm space-y-5 animate-in zoom-in-95 duration-200">
+        <h2 className="text-subtitle font-bold text-text-primary">
+          Editar Plano — <span className="text-primary-action">{salao.nome}</span>
+        </h2>
+
+        <div className="space-y-1.5">
+          <label className="text-micro font-bold text-text-secondary uppercase tracking-widest ml-1">
+            Plano
+          </label>
+          <select
+            value={plano}
+            onChange={e => setPlano(e.target.value as any)}
+            className="w-full bg-bg-default border border-border-default rounded-lg px-4 h-11 outline-none focus:border-primary-action transition-all text-text-primary font-bold"
+          >
+            {PLANOS.map(p => (
+              <option key={p} value={p}>{p.toUpperCase()}</option>
+            ))}
+          </select>
+        </div>
+
+        <Input
+          type="date"
+          label="VALIDADE DO PLANO"
+          value={validade}
+          onChange={e => setValidade(e.target.value)}
+        />
+
+        <div className="flex gap-3 pt-2">
+          <Button variant="ghost" fullWidth onClick={onClose}>
+            Cancelar
+          </Button>
+          <Button fullWidth isLoading={mutation.isPending} onClick={() => mutation.mutate()}>
+            Salvar
+          </Button>
+        </div>
+      </Card>
+    </div>
+  )
+}
+
+// ─── PÁGINA PRINCIPAL ──────────────────────────────────────────────────────
+export default function MasterDashboard() {
+  const queryClient = useQueryClient()
+  const [salaoEditando, setSalaoEditando] = useState<Salao | null>(null)
+
+  const { data: saloes = [], isLoading } = useQuery<Salao[]>({
+    queryKey: ['master-saloes'],
+    queryFn: buscarSaloesMaster,
+  })
+
+  const mutationStatus = useMutation({
+    mutationFn: ({ id, ativo }: { id: string; ativo: boolean }) =>
+      atualizarSalao(id, { ativo }),
+    onSuccess: (_, { ativo }) => {
+      queryClient.invalidateQueries({ queryKey: ['master-saloes'] })
+      toast.success(ativo ? 'Acesso liberado com sucesso!' : 'Acesso bloqueado.')
+    },
+    onError: () => toast.error('Erro ao atualizar status.'),
+  })
+
+  const formatarMoeda = (valor: number) =>
+    Number(valor).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+
+  const faturamentoEstimado = saloes.reduce((acc, s) => {
+    const tabela: Record<string, number> = { free: 0, basic: 49, pro: 99, vitrine: 149 }
+    return acc + (s.ativo ? (tabela[s.plano] ?? 0) : 0)
+  }, 0)
+
+  const totalAtivos   = saloes.filter(s => s.ativo).length
+  const totalBloqueados = saloes.filter(s => !s.ativo).length
+
+  return (
+    <div className="min-h-screen bg-bg-default p-4 md:p-8 pb-24 antialiased">
+
+      {/* HEADER */}
       <header className="max-w-7xl mx-auto mb-8">
-        <h1 className="text-title font-black text-primary-action flex items-center gap-2 italic uppercase tracking-tighter">
-          <Wallet size={28} /> Painel de Controle Master
+        <h1 className="text-title font-black text-primary-action flex items-center gap-2 uppercase tracking-tight">
+          <Wallet size={24} strokeWidth={2.5} /> Painel Master
         </h1>
-        <p className="text-text-secondary font-medium">Gerencie os salões e assinaturas do Agendar 2.0</p>
+        <p className="text-text-secondary text-body font-medium mt-1">
+          Gerencie os salões e assinaturas do Agendar 2.0
+        </p>
       </header>
 
       <main className="max-w-7xl mx-auto space-y-6">
-        
-        {/* MÉTRICAS RÁPIDAS */}
+
+        {/* MÉTRICAS */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <Card className="p-4 border-l-4 border-primary-action">
-            <p className="text-micro font-black text-text-secondary uppercase">Total de Salões</p>
-            <p className="text-subtitle font-black">{saloes?.length || 0}</p>
+            <p className="text-micro font-black text-text-secondary uppercase">Total</p>
+            <p className="text-subtitle font-black">{saloes.length}</p>
           </Card>
           <Card className="p-4 border-l-4 border-status-success">
-            <p className="text-micro font-black text-text-secondary uppercase">Faturamento Estimado</p>
-            <p className="text-subtitle font-black text-status-success">
-               {formatarMoeda(saloes?.reduce((acc, s) => acc + (s.ativo ? 49 : 0), 0) || 0)}
+            <p className="text-micro font-black text-text-secondary uppercase">Ativos</p>
+            <p className="text-subtitle font-black text-status-success">{totalAtivos}</p>
+          </Card>
+          <Card className="p-4 border-l-4 border-status-error">
+            <p className="text-micro font-black text-text-secondary uppercase">Bloqueados</p>
+            <p className="text-subtitle font-black text-status-error">{totalBloqueados}</p>
+          </Card>
+          <Card className="p-4 border-l-4 border-primary-action">
+            <p className="text-micro font-black text-text-secondary uppercase">MRR Est.</p>
+            <p className="text-subtitle font-black text-primary-action">
+              {formatarMoeda(faturamentoEstimado)}
             </p>
           </Card>
         </div>
 
-        {/* LISTAGEM DE CLIENTES */}
-        <Card className="overflow-hidden border-border-default">
+        {/* TABELA */}
+        <Card className="overflow-hidden p-0">
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
               <thead>
                 <tr className="bg-neutral-50 border-b border-border-default">
-                  <th className="p-4 text-micro font-black uppercase text-text-secondary">Salão / Empresa</th>
+                  <th className="p-4 text-micro font-black uppercase text-text-secondary">Salão</th>
+                  <th className="p-4 text-micro font-black uppercase text-text-secondary">Uso</th>
                   <th className="p-4 text-micro font-black uppercase text-text-secondary">Plano</th>
+                  <th className="p-4 text-micro font-black uppercase text-text-secondary">Validade</th>
                   <th className="p-4 text-micro font-black uppercase text-text-secondary">Status</th>
                   <th className="p-4 text-micro font-black uppercase text-text-secondary text-right">Ações</th>
                 </tr>
@@ -74,51 +176,123 @@ export default function MasterDashboard() {
               <tbody className="divide-y divide-border-default">
                 {isLoading ? (
                   <tr>
-                    <td colSpan={4} className="p-10 text-center">
-                      <Loader2 className="animate-spin mx-auto text-primary-action" />
+                    <td colSpan={6} className="p-10 text-center">
+                      <Loader2 className="animate-spin mx-auto text-primary-action" size={28} />
                     </td>
                   </tr>
-                ) : saloes?.map((salao) => (
-                  <tr key={salao.id} className="hover:bg-neutral-50 transition-colors">
-                    <td className="p-4">
-                      <p className="text-body font-black text-text-primary">{salao.nome}</p>
-                      <p className="text-micro text-text-secondary">{salao.telefone}</p>
-                    </td>
-                    <td className="p-4">
-                      <Badge variant={salao.plano === 'pro' ? 'success' : 'default'} className="uppercase">
-                        {salao.plano}
-                      </Badge>
-                    </td>
-                    <td className="p-4">
-                      {salao.ativo ? (
-                        <span className="flex items-center gap-1 text-status-success text-micro font-bold uppercase">
-                          <CheckCircle2 size={14} /> Ativo / Pago
-                        </span>
-                      ) : (
-                        <span className="flex items-center gap-1 text-status-error text-micro font-bold uppercase">
-                          <XCircle size={14} /> Bloqueado
-                        </span>
-                      )}
-                    </td>
-                    <td className="p-4 text-right">
-                      <button 
-                        onClick={() => mutation.mutate({ id: salao.id, ativo: !salao.ativo })}
-                        className={`px-3 py-1.5 rounded-md text-micro font-black uppercase transition-all ${
-                          salao.ativo 
-                            ? 'bg-status-error/10 text-status-error hover:bg-status-error hover:text-white' 
-                            : 'bg-status-success/10 text-status-success hover:bg-status-success hover:text-white'
-                        }`}
-                      >
-                        {salao.ativo ? 'Bloquear' : 'Ativar Acesso'}
-                      </button>
+                ) : saloes.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="p-10 text-center text-text-secondary text-body font-medium">
+                      Nenhum salão cadastrado ainda.
                     </td>
                   </tr>
-                ))}
+                ) : saloes.map((salao) => {
+                  const vencido = salao.plano_validade
+                    ? new Date(salao.plano_validade) < new Date()
+                    : false
+
+                  return (
+                    <tr key={salao.id} className="hover:bg-neutral-50 transition-colors">
+
+                      {/* NOME */}
+                      <td className="p-4">
+                        <p className="text-body font-black text-text-primary">{salao.nome}</p>
+                        <p className="text-micro text-text-secondary">{salao.telefone || '—'}</p>
+                      </td>
+
+                      {/* USO */}
+                      <td className="p-4">
+                        <span className="flex items-center gap-1 text-micro text-text-secondary font-bold">
+                          <Users size={12} /> {salao._count.usuarios} usuários
+                        </span>
+                        <span className="flex items-center gap-1 text-micro text-text-secondary font-bold mt-0.5">
+                          <Calendar size={12} /> {salao._count.agendamentos} agend.
+                        </span>
+                      </td>
+
+                      {/* PLANO */}
+                      <td className="p-4">
+                        <Badge variant={badgePlano[salao.plano] ?? 'default'} className="uppercase">
+                          {salao.plano}
+                        </Badge>
+                      </td>
+
+                      {/* VALIDADE */}
+                      <td className="p-4">
+                        {salao.plano_validade ? (
+                          <span className={`text-micro font-bold ${vencido ? 'text-status-error' : 'text-text-secondary'}`}>
+                            {vencido ? '⚠️ Vencido · ' : ''}
+                            {new Date(salao.plano_validade).toLocaleDateString('pt-BR')}
+                          </span>
+                        ) : (
+                          <span className="text-micro text-text-muted">—</span>
+                        )}
+                      </td>
+
+                      {/* STATUS */}
+                      <td className="p-4">
+                        {salao.ativo ? (
+                          <span className="flex items-center gap-1 text-status-success text-micro font-bold uppercase">
+                            <CheckCircle2 size={14} /> Ativo
+                          </span>
+                        ) : (
+                          <span className="flex items-center gap-1 text-status-error text-micro font-bold uppercase">
+                            <XCircle size={14} /> Bloqueado
+                          </span>
+                        )}
+                      </td>
+
+                      {/* AÇÕES */}
+                      <td className="p-4">
+                        <div className="flex items-center justify-end gap-2">
+                          {/* EDITAR PLANO */}
+                          <button
+                            onClick={() => setSalaoEditando(salao)}
+                            className="p-2 rounded-lg text-text-secondary hover:text-primary-action hover:bg-primary-50 transition-all"
+                            title="Editar plano"
+                          >
+                            <CreditCard size={16} strokeWidth={2.5} />
+                          </button>
+
+                          {/* BLOQUEAR / ATIVAR */}
+                          <button
+                            onClick={() => {
+                              const acao = salao.ativo ? 'bloquear' : 'ativar'
+                              if (window.confirm(`Deseja ${acao} o acesso de "${salao.nome}"?`)) {
+                                mutationStatus.mutate({ id: salao.id, ativo: !salao.ativo })
+                              }
+                            }}
+                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-micro font-black uppercase transition-all ${
+                              salao.ativo
+                                ? 'bg-status-error/10 text-status-error hover:bg-status-error hover:text-white'
+                                : 'bg-status-success/10 text-status-success hover:bg-status-success hover:text-white'
+                            }`}
+                          >
+                            {salao.ativo
+                              ? <><ShieldOff size={13} /> Bloquear</>
+                              : <><ShieldCheck size={13} /> Ativar</>
+                            }
+                          </button>
+                        </div>
+                      </td>
+
+                    </tr>
+                  )
+                })}
               </tbody>
             </table>
           </div>
         </Card>
+
       </main>
+
+      {/* MODAL DE EDIÇÃO DE PLANO */}
+      {salaoEditando && (
+        <ModalEdicao
+          salao={salaoEditando}
+          onClose={() => setSalaoEditando(null)}
+        />
+      )}
     </div>
-  );
+  )
 }
