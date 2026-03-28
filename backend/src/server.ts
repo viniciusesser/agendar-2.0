@@ -12,6 +12,8 @@ import { dashboardRoutes } from './routes/agenda/dashboard.routes'
 import { profissionaisRoutes } from './routes/agenda/profissionais.routes'
 import { configuracoesRoutes } from './routes/agenda/configuracoes.routes'
 import { masterRoutes } from './routes/master.routes'
+import { pushRoutes } from './routes/push.routes'
+import { iniciarCronJobs } from './jobs/notificacoes.cron'
 
 const app = Fastify({ logger: true })
 
@@ -72,7 +74,8 @@ app.register(estoqueRoutes,       { prefix: '/api/agendar' })
 app.register(dashboardRoutes,     { prefix: '/api/agendar' })
 app.register(profissionaisRoutes, { prefix: '/api/agendar' })
 app.register(configuracoesRoutes, { prefix: '/api/agendar' })
-app.register(masterRoutes,        { prefix: '/api/agendar' }) // ← ADICIONADO
+app.register(masterRoutes,        { prefix: '/api/agendar' })
+app.register(pushRoutes,          { prefix: '/api/agendar' }) // ← ADICIONADO
 
 // =========================================================================
 
@@ -80,6 +83,7 @@ const start = async () => {
   try {
     await app.listen({ port: 3333, host: '0.0.0.0' })
     console.log('🚀 Servidor rodando na porta 3333')
+    iniciarCronJobs() // ← Inicia o job das 6h após o servidor subir
   } catch (err) {
     app.log.error(err)
     process.exit(1)

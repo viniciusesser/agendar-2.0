@@ -26,6 +26,7 @@ model ag_empresas {
   socias           ag_socias[]
   estoque          ag_estoque[]
   configuracoes    ag_configuracoes[]
+  push_subscriptions ag_push_subscriptions[]
 }
 
 model ag_usuarios {
@@ -39,6 +40,7 @@ model ag_usuarios {
   deleted_at DateTime?
   criado_em  DateTime    @default(now())
   empresa    ag_empresas @relation(fields: [empresa_id], references: [id])
+  push_subscriptions ag_push_subscriptions[]
 }
 
 model ag_profissionais {
@@ -229,4 +231,16 @@ model ag_configuracoes {
   empresa    ag_empresas @relation(fields: [empresa_id], references: [id])
 
   @@unique([empresa_id, chave])
+}
+
+model ag_push_subscriptions {
+  id          String   @id @default(uuid())
+  usuario_id  String
+  empresa_id  String
+  endpoint    String   @unique
+  p256dh      String
+  auth        String
+  criado_em   DateTime @default(now())
+  usuario     ag_usuarios @relation(fields: [usuario_id], references: [id])
+  empresa     ag_empresas @relation(fields: [empresa_id], references: [id])
 }
