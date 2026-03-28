@@ -1,5 +1,6 @@
 import { prisma } from '../lib/prisma'
 import crypto from 'node:crypto'
+import { PLANOS_CONFIG } from '../config/planos'
 
 export async function listarProfissionais(empresaId: string) {
   return prisma.ag_profissionais.findMany({
@@ -9,7 +10,31 @@ export async function listarProfissionais(empresaId: string) {
   })
 }
 
-export async function criarProfissional(empresa_id: string, dados: { nome: string, cor?: string, comissao_pct?: number, comissao_produto_pct?: number }) {
+export async function criarProfissional(
+  empresa_id: string,
+  dados: { nome: string; cor?: string; comissao_pct?: number; comissao_produto_pct?: number }
+) {
+  // ─── VERIFICAÇÃO DE LIMITE DE PLANO ──────────────────────────────────
+  const empresa = await prisma.ag_empresas.findUnique({
+    where: { id: empresa_id },
+    select: { plano: true },
+  })
+
+  if (!empresa) throw new Error('EMPRESA_NAO_ENCONTRADA')
+
+  const config = PLANOS_CONFIG[empresa.plano] ?? PLANOS_CONFIG['free']
+
+  if (config.limite_profissionais !== Infinity) {
+    const totalAtivos = await prisma.ag_profissionais.count({
+      where: { empresa_id, deleted_at: null },
+    })
+
+    if (totalAtivos >= config.limite_profissionais) {
+      throw new Error('LIMITE_PLANO_ATINGIDO')
+    }
+  }
+  // ─────────────────────────────────────────────────────────────────────
+
   return prisma.ag_profissionais.create({
     data: {
       empresa_id,
@@ -21,13 +46,11 @@ export async function criarProfissional(empresa_id: string, dados: { nome: strin
   })
 }
 
-export async function editarProfissional(empresaId: string, profissionalId: string, dados: {
-  nome?: string
-  cor?: string
-  comissao_pct?: number
-  comissao_produto_pct?: number
-  ativo?: boolean
-}) {
+export async function editarProfissional(
+  empresaId: string,
+  profissionalId: string,
+  dados: { nome?: string; cor?: string; comissao_pct?: number; comissao_produto_pct?: number; ativo?: boolean }
+) {
   const prof = await prisma.ag_profissionais.findFirst({
     where: { id: profissionalId, empresa_id: empresaId, deleted_at: null },
   })
@@ -39,11 +62,10 @@ export async function editarProfissional(empresaId: string, profissionalId: stri
   })
 }
 
-export async function definirComissaoServico(empresaId: string, dados: {
-  profissional_id: string
-  servico_id: string
-  comissao_pct: number
-}) {
+export async function definirComissaoServico(
+  empresaId: string,
+  dados: { profissional_id: string; servico_id: string; comissao_pct: number }
+) {
   const prof = await prisma.ag_profissionais.findFirst({
     where: { id: dados.profissional_id, empresa_id: empresaId, deleted_at: null },
   })
@@ -71,7 +93,12 @@ export async function definirComissaoServico(empresaId: string, dados: {
   })
 }
 
-export async function relatorioProfissional(empresaId: string, profissionalId: string, mes: number, ano: number) {
+export async function relatorioProfissional(
+  empresaId: string,
+  profissionalId: string,
+  mes: number,
+  ano: number
+) {
   const inicio = new Date(Date.UTC(ano, mes - 1, 1))
   const fim = new Date(Date.UTC(ano, mes, 0, 23, 59, 59))
 
@@ -105,10 +132,28 @@ export async function relatorioProfissional(empresaId: string, profissionalId: s
   }
 }
 
-export async function gerarConvite(empresaId: string, dados: {
-  email?: string
-  perfil?: string
-}) {
+export async function gerarConvite(
+  empresaId: string,
+  dados: { email?: string; perfil?: string }
+) {
+  // Verifica limite de plano antes de gerar o convite também
+  const empresa = await prisma.ag_empresas.findUnique({
+    where: { id: empresaId },
+    select: { plano: true },
+  })
+
+  if (empresa) {
+    const config = PLANOS_CONFIG[empresa.plano] ?? PLANOS_CONFIG['free']
+    if (config.limite_profissionais !== Infinity) {
+      const totalAtivos = await prisma.ag_profissionais.count({
+        where: { empresa_id: empresaId, deleted_at: null },
+      })
+      if (totalAtivos >= config.limite_profissionais) {
+        throw new Error('LIMITE_PLANO_ATINGIDO')
+      }
+    }
+  }
+
   const token = crypto.randomUUID().replace(/-/g, '').slice(0, 12).toUpperCase()
   const expira_em = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
 
@@ -123,18 +168,14 @@ export async function gerarConvite(empresaId: string, dados: {
   })
 }
 
-export async function usarConvite(token: string, dados: {
-  nome: string
-  email: string
-  senha: string
-}) {
+export async function usarConvite(token: string, dados: { nome: string; email: string; senha: string }) {
   const bcrypt = await import('bcryptjs')
   const jwt = await import('jsonwebtoken')
 
   const convite = await prisma.ag_convites.findUnique({ where: { token } })
 
-  if (!convite) throw new Error('TOKEN_INVALIDO')
-  if (convite.usado) throw new Error('TOKEN_USADO')
+  if (!convite)                    throw new Error('TOKEN_INVALIDO')
+  if (convite.usado)               throw new Error('TOKEN_USADO')
   if (new Date() > convite.expira_em) throw new Error('TOKEN_EXPIRADO')
 
   const emailExiste = await prisma.ag_usuarios.findUnique({ where: { email: dados.email } })
@@ -169,48 +210,39 @@ export async function usarConvite(token: string, dados: {
   const tokenJwt = jwt.default.sign(
     { userId: usuario.id, empresaId: convite.empresa_id, perfil: usuario.perfil },
     process.env.JWT_SECRET!,
-    { expiresIn: '8h' }
+    { expiresIn: '15m' }
   )
 
-  return { token: tokenJwt, usuario: { id: usuario.id, nome: usuario.nome, email: usuario.email, perfil: usuario.perfil } }
+  return {
+    token: tokenJwt,
+    usuario: { id: usuario.id, nome: usuario.nome, email: usuario.email, perfil: usuario.perfil },
+    empresa: { id: convite.empresa_id },
+  }
 }
 
-/**
- * EXCLUIR PROFISSIONAL (REFORÇADO)
- * Impede a exclusão de perfis 'dono' para evitar bloqueio total do sistema.
- */
 export async function excluirProfissional(empresaId: string, profissionalId: string) {
-  // 1. Busca o profissional primeiro (removi o 'include' que dava erro)
   const prof = await prisma.ag_profissionais.findFirst({
     where: { id: profissionalId, empresa_id: empresaId, deleted_at: null },
   })
-  
   if (!prof) throw new Error('NAO_ENCONTRADO')
 
-  // 2. Se houver um usuário vinculado, buscamos o perfil dele manualmente
   if (prof.usuario_id) {
-    const usuarioVincualdo = await prisma.ag_usuarios.findUnique({
-      where: { id: prof.usuario_id }
+    const usuarioVinculado = await prisma.ag_usuarios.findUnique({
+      where: { id: prof.usuario_id },
     })
-
-    // 3. REGRA DE OURO: Se o perfil for 'dono', barra a exclusão
-    if (usuarioVincualdo?.perfil === 'dono') {
-      throw new Error('PROIBIDO_EXCLUIR_DONO')
-    }
+    if (usuarioVinculado?.perfil === 'dono') throw new Error('PROIBIDO_EXCLUIR_DONO')
   }
 
   return prisma.$transaction(async (tx) => {
-    // 4. Inativa o profissional (Soft Delete)
     const inativado = await tx.ag_profissionais.update({
       where: { id: profissionalId },
       data: { deleted_at: new Date() },
     })
 
-    // 5. Inativa o acesso do usuário também, se existir
     if (prof.usuario_id) {
       await tx.ag_usuarios.update({
         where: { id: prof.usuario_id },
-        data: { deleted_at: new Date() } 
+        data: { ativo: false },
       })
     }
 

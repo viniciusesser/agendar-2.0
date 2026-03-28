@@ -51,18 +51,36 @@ export async function profissionaisRoutes(app: FastifyInstance) {
     })
 
     rotasProtegidas.post('/profissionais', async (req: FastifyRequest, reply: FastifyReply) => {
-      const body = req.body as any
-      if (!body.nome) {
-        return reply.status(400).send({ success: false, error: { code: 'VALIDACAO', message: 'O nome é obrigatório.' } })
+      try {
+        const body = req.body as any
+        if (!body.nome) {
+          return reply.status(400).send({
+            success: false,
+            error: { code: 'VALIDACAO', message: 'O nome é obrigatório.' }
+          })
+        }
+
+        const profissional = await criarProfissional(req.usuario.empresaId, {
+          nome: body.nome,
+          cor: body.cor,
+          comissao_pct: body.comissao_pct,
+          comissao_produto_pct: body.comissao_produto_pct
+        })
+        return reply.status(201).send({ success: true, data: profissional })
+
+      } catch (e: any) {
+        // ← NOVO: trata o erro de limite de plano
+        if (e.message === 'LIMITE_PLANO_ATINGIDO') {
+          return reply.status(403).send({
+            success: false,
+            error: {
+              code: 'LIMITE_PLANO_ATINGIDO',
+              message: 'Você atingiu o limite de profissionais do seu plano. Faça um upgrade para continuar.'
+            }
+          })
+        }
+        throw e
       }
-      
-      const profissional = await criarProfissional(req.usuario.empresaId, { 
-        nome: body.nome,
-        cor: body.cor,
-        comissao_pct: body.comissao_pct,
-        comissao_produto_pct: body.comissao_produto_pct
-      })
-      return reply.status(201).send({ success: true, data: profissional })
     })
 
     rotasProtegidas.put('/profissionais/:id', async (req: FastifyRequest, reply: FastifyReply) => {
@@ -111,11 +129,29 @@ export async function profissionaisRoutes(app: FastifyInstance) {
       return reply.send({ success: true, data: relatorio })
     })
 
-    rotasProtegidas.post('/convites', { preHandler: exigirPerfil('dono', 'admin') }, async (req: FastifyRequest, reply: FastifyReply) => {
-      const { email, perfil } = req.body as any
-      const convite = await gerarConvite(req.usuario.empresaId, { email, perfil })
-      const link = `${process.env.APP_URL ?? 'http://localhost:3000'}/convite/${convite.token}`
-      return reply.status(201).send({ success: true, data: { ...convite, link } })
+    rotasProtegidas.post('/convites', async (req: FastifyRequest, reply: FastifyReply) => {
+      try {
+        const body = req.body as any
+        const convite = await gerarConvite(req.usuario.empresaId, {
+          email: body.email,
+          perfil: body.perfil,
+        })
+        const link = `${process.env.APP_URL}/convite/${convite.token}`
+        return reply.status(201).send({ success: true, data: { ...convite, link } })
+
+      } catch (e: any) {
+        // ← NOVO: trata o erro de limite de plano
+        if (e.message === 'LIMITE_PLANO_ATINGIDO') {
+          return reply.status(403).send({
+            success: false,
+            error: {
+              code: 'LIMITE_PLANO_ATINGIDO',
+              message: 'Você atingiu o limite de profissionais do seu plano. Faça um upgrade para continuar.'
+            }
+          })
+        }
+        throw e
+      }
     })
   })
 }
