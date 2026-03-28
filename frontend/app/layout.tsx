@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import { Providers } from "./providers";
+import { Toaster } from "sonner"; // IMPORTAMOS O PROJETOR DE NOTIFICAÇÕES
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -35,13 +36,17 @@ export default function RootLayout({
 }) {
   return (
     <html lang="pt-BR" suppressHydrationWarning>
-      {/* 
-         A classe 'bg-bg-default' deve bater EXATAMENTE com o globals.css.
+      {/* A classe 'bg-bg-default' deve bater EXATAMENTE com o globals.css.
          O erro de hidratação acontecia porque o servidor tentava 
          enviar 'bg-background-default'.
       */}
       <body className={`${inter.className} antialiased bg-bg-default text-text-primary`}>
-        <Providers>{children}</Providers>
+        <Providers>
+          {children}
+        </Providers>
+        
+        {/* ADICIONAMOS O TOASTER AQUI NO FINAL DO BODY */}
+        <Toaster richColors position="top-center" />
       </body>
     </html>
   );

@@ -3,8 +3,10 @@
 import { useState, use } from "react";
 import { useRouter } from "next/navigation";
 import { useMutation } from "@tanstack/react-query";
-import axios from "axios";
 import { Sparkles } from "lucide-react";
+import { toast } from "sonner"; // 1. IMPORTANDO O TOAST
+import api from "@/lib/api"; // 2. IMPORTANDO A NOSSA API CENTRALIZADA
+import { useAuthStore } from "@/store/auth.store"; // 3. IMPORTANDO O NOSSO CÉREBRO
 
 // Importação dos componentes do Design System 2.0
 import { Button } from "@/components/ui/Button";
@@ -21,31 +23,33 @@ export default function AceitarConvitePage({ params }: { params: Promise<{ token
   const [senha, setSenha] = useState("");
 
   const mutation = useMutation({
-    mutationFn: (dados: any) => axios.post(`${process.env.NEXT_PUBLIC_API_URL}/convites/usar`, dados),
+    // Trocamos o axios direto pela nossa 'api' configurada
+    mutationFn: (dados: any) => api.post(`/convites/usar`, dados),
     onSuccess: (response) => {
-      // O axios coloca a resposta do backend dentro de "data". 
-      // Como seu backend devolve { success: true, data: { token, usuario } }, pegamos o data.data
+      // A resposta do backend vem dentro de "data". 
       const respostaBackend = response.data.data; 
       
-      // Padronização de armazenamento (Seção 14.14 do Design System)
-      localStorage.setItem('agendar_token', respostaBackend.token);
-      localStorage.setItem('agendar_usuario', JSON.stringify(respostaBackend.usuario));
+      // Padronização de armazenamento via Zustand (Adeus localStorage!)
+      useAuthStore.getState().setAuth(
+        respostaBackend.token, 
+        respostaBackend.usuario, 
+        respostaBackend.empresa
+      );
+      
+      toast.success("Conta criada com sucesso! Bem-vinda.");
       router.push('/');
     },
     onError: (error: any) => {
       const codigoErro = error.response?.data?.error?.code;
       const mensagemErro = error.response?.data?.error?.message;
 
+      // Substituindo o alert feio pelo toast elegante
       if (codigoErro === 'EMAIL_JA_CADASTRADO') {
-        alert(
-          "Opa! Esse e-mail já possui um cadastro no Agendar 2.0.\n\n" +
-          "👉 Se você já tem uma conta, vá para a tela de Login.\n" +
-          "👉 Se você é nova aqui, tente usar outro e-mail pessoal."
+        toast.error(
+          "Esse e-mail já possui um cadastro. Se você já tem uma conta, vá para a tela de Login."
         );
-        // Opcional: Se quiser que o sistema jogue ela para o login automaticamente
-        // router.push('/login');
       } else {
-        alert(mensagemErro || "Link de convite inválido ou expirado.");
+        toast.error(mensagemErro || "Link de convite inválido ou expirado.");
       }
     }
   });

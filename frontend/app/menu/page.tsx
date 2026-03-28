@@ -5,6 +5,9 @@ import { Users, Scissors, Package, Settings, LogOut, ChevronRight, Megaphone, Ar
 import { useRouter } from "next/navigation";
 import BottomNav from "@/components/ui/BottomNav";
 
+// 1. IMPORTANDO O NOSSO STORE
+import { useAuthStore } from "@/store/auth.store";
+
 // Importação dos componentes do Design System 2.0
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
@@ -13,11 +16,9 @@ export default function MenuPage() {
   const router = useRouter();
 
   function handleLogout() {
-    if (typeof window !== 'undefined') {
-      localStorage.removeItem('agendar_token');
-      localStorage.removeItem('agendar_usuario');
-      router.push('/login');
-    }
+    // 2. USANDO A FUNÇÃO CENTRALIZADA DE LOGOUT
+    useAuthStore.getState().logout();
+    router.push('/login');
   }
 
   const menuItems = [

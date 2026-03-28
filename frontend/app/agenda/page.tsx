@@ -14,7 +14,11 @@ import {
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import axios from "axios";
+
+// 1. IMPORTAÇÕES CORRIGIDAS (Adeus Axios solto, olá API e Toast!)
+import api from "@/lib/api";
+import { toast } from "sonner";
+
 import { buscarAgendamentosDoDia } from "@/services/agendamentos.service";
 import { buscarConfiguracoes } from "@/services/configuracoes.service";
 import { buscarDashboardDia } from "@/services/dashboard.service";
@@ -174,23 +178,22 @@ export default function AgendaPage() {
     enabled: !!dataSelecionada
   });
 
-  // Mutation para excluir bloqueio
+  // 2. MUTATION REFATORADA (Usando a instância da API e os toasts)
   const mutationExcluirBloqueio = useMutation({
     mutationFn: async (id: string) => {
-      const token = localStorage.getItem('agendar_token');
-      return axios.delete(`${process.env.NEXT_PUBLIC_API_URL}/bloqueios/${id}`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      return api.delete(`/bloqueios/${id}`);
     },
     onSuccess: () => {
+      toast.success("Bloqueio removido com sucesso!");
       queryClient.invalidateQueries({ queryKey: ['agendamentos'] });
     },
     onError: () => {
-      alert("Erro ao excluir bloqueio. Tente novamente.");
+      toast.error("Erro ao excluir bloqueio. Tente novamente.");
     }
   });
 
   const handleExcluirBloqueio = (bloqueio: any) => {
+    // O window.confirm se mantém pois é nativo e excelente para impedir cliques acidentais rápidos na grade
     if (window.confirm(`Deseja remover o bloqueio de ${bloqueio.profissional?.nome} e liberar este horário?`)) {
       mutationExcluirBloqueio.mutate(bloqueio.id);
     }
