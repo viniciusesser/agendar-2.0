@@ -61,7 +61,14 @@ export default function ModalProfissional({ isOpen, onClose, profissional }: Mod
       queryClient.invalidateQueries({ queryKey: ['agendamentos'] }); 
       onClose();
     },
-    onError: () => alert("Erro ao salvar dados da profissional.")
+    onError: (err: any) => {
+      const code = err.response?.data?.error?.code
+      if (code === 'LIMITE_PLANO_ATINGIDO') {
+        toast.error('Limite de profissionais atingido. Fale conosco para fazer upgrade do plano.')
+      } else {
+        toast.error('Erro ao salvar dados da profissional.')
+      }
+    }
   });
 
   const deleteMutation = useMutation({
