@@ -11,7 +11,6 @@ import { Card } from '@/components/ui/Card'
 
 export default function LoginPage() {
   const router = useRouter()
-  // Puxamos também o 'token' da nossa loja persistente
   const { setAuth, token } = useAuthStore()
 
   const [email, setEmail] = useState('')
@@ -19,9 +18,8 @@ export default function LoginPage() {
   const [erro, setErro] = useState('')
   const [carregando, setCarregando] = useState(false)
 
-  // --- O LEÃO DE CHÁCARA ---
-  // Se a tela de login abrir, mas o celular já tiver a chave guardada,
-  // manda o usuário direto para a agenda sem nem mostrar os campos.
+  // --- GUARDA DE ROTA ---
+  // Se já tiver sessão ativa, redireciona sem mostrar o formulário.
   useEffect(() => {
     if (token) {
       router.replace('/agenda')
@@ -34,21 +32,15 @@ export default function LoginPage() {
     setCarregando(true)
 
     try {
-      // 1. Tenta o login no backend
       const dados = await login(email, senha)
-      
-      // 2. Limpa resquícios de outras contas
-      localStorage.clear()
 
-      // 3. Salva no Store e no LocalStorage
+      // ✅ UMA ÚNICA linha de storage. O Zustand persist cuida do resto.
+      // Sem localStorage.clear(), sem localStorage.setItem() manuais.
       setAuth(dados.token, dados.usuario, dados.empresa)
-      localStorage.setItem('agendar_token', dados.token)
-      localStorage.setItem('agendar_usuario', JSON.stringify(dados.usuario))
 
-      // 4. Redireciona para o local correto (MUDAMOS PARA REPLACE!)
-      // O replace apaga o /login do histórico, impedindo que o botão "voltar" traga pra cá.
-      router.replace('/agenda') 
-      
+      // replace() apaga o /login do histórico — o botão "voltar" não traz de volta.
+      router.replace('/agenda')
+
     } catch (err: any) {
       console.error("Erro no login:", err)
       const msg = err.response?.data?.error?.message ?? 'E-mail ou senha incorretos.'
@@ -58,23 +50,23 @@ export default function LoginPage() {
     }
   }
 
-  // Se já tiver token, a tela fica em branco por 1 milissegundo enquanto o vigia te redireciona
-  if (token) return null; 
+  // Evita flash da tela de login enquanto o guard redireciona
+  if (token) return null
 
   return (
     <div className="min-h-screen bg-bg-default md:bg-neutral-50 flex items-center justify-center p-4 sm:p-8 antialiased">
-      
+
       <div className="w-full max-w-[400px] animate-in fade-in zoom-in duration-300">
-        
-        {/* === ÁREA DA LOGO ATUALIZADA === */}
+
+        {/* LOGO */}
         <div className="text-center mb-8 md:mb-10 flex flex-col items-center">
-          <Image 
-             src="/logo.png"
-             alt="Logo Agendar" 
-             width={250}
-             height={80}
-             className="mb-2 drop-shadow-sm h-auto w-auto"
-             priority
+          <Image
+            src="/logo.png"
+            alt="Logo Agendar"
+            width={250}
+            height={80}
+            className="mb-2 drop-shadow-sm h-auto w-auto"
+            priority
           />
           <p className="text-text-secondary text-body font-medium tracking-wide">
             Gestão para salões de beleza
@@ -106,7 +98,7 @@ export default function LoginPage() {
             />
 
             {erro && (
-              <div className="bg-status-error/10 border border-status-error/20 text-status-error text-small font-medium p-3 rounded-lg animate-shake text-center">
+              <div className="bg-status-error/10 border border-status-error/20 text-status-error text-small font-medium p-3 rounded-lg text-center">
                 {erro}
               </div>
             )}
@@ -124,10 +116,11 @@ export default function LoginPage() {
 
         <p className="text-center mt-8 text-body text-text-secondary font-medium">
           Ainda não faz parte?{' '}
-          <a href="/registro" className="text-primary-action font-bold hover:underline transition-colors">
-            Crie sua conta grátis
+          <a href="/cadastro" className="text-primary-action font-bold hover:underline">
+            Crie sua conta
           </a>
         </p>
+
       </div>
     </div>
   )
