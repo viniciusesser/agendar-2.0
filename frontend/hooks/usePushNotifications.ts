@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import api from '@/lib/api'
+import { useAuthStore } from '@/store/auth.store'
 
-// Converte a chave pública VAPID de base64 para Uint8Array
 function urlBase64ToUint8Array(base64String: string): ArrayBuffer {
   const padding = '='.repeat((4 - (base64String.length % 4)) % 4)
   const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/')
@@ -13,29 +13,29 @@ function urlBase64ToUint8Array(base64String: string): ArrayBuffer {
   return arr.buffer
 }
 
-/**
- * Hook que pede permissão de notificação e registra o dispositivo no backend.
- * Deve ser chamado uma única vez, preferencialmente no layout raiz após o login.
- */
 export function usePushNotifications() {
   const [permissao, setPermissao] = useState<NotificationPermission | 'unsupported'>('default')
+  const [mounted, setMounted] = useState(false)
+  const token = useAuthStore(state => state.token)
 
   useEffect(() => {
-    // Verifica se o navegador suporta push notifications
     if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
       setPermissao('unsupported')
       return
     }
-
+    setMounted(true)
     setPermissao(Notification.permission)
 
-    // Se já tem permissão, registra direto sem pedir novamente
-    if (Notification.permission === 'granted') {
+    // Se já tem permissão E tem token, registra direto
+    if (Notification.permission === 'granted' && token) {
       registrarSubscription()
     }
-  }, [])
+  }, [token])
 
   async function registrarSubscription() {
+    // Só registra se o usuário estiver autenticado
+    if (!token) return
+
     try {
       const registration = await navigator.serviceWorker.register('/sw.js')
       await navigator.serviceWorker.ready
@@ -48,7 +48,6 @@ export function usePushNotifications() {
         applicationServerKey: urlBase64ToUint8Array(publicKey),
       })
 
-      // Envia a subscription para o backend salvar
       await api.post('/push/subscribe', subscription.toJSON())
     } catch (err) {
       console.error('Erro ao registrar push subscription:', err)
@@ -57,6 +56,7 @@ export function usePushNotifications() {
 
   async function pedirPermissao() {
     if (!('Notification' in window)) return
+    if (!token) return // Não pede permissão sem usuário logado
 
     const resultado = await Notification.requestPermission()
     setPermissao(resultado)
@@ -68,5 +68,5 @@ export function usePushNotifications() {
     return resultado
   }
 
-  return { permissao, pedirPermissao }
+  return { permissao, pedirPermissao, mounted }
 }

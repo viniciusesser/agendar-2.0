@@ -3,6 +3,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useState, useEffect } from "react";
 import { usePushNotifications } from "@/hooks/usePushNotifications";
+import { useAuthStore } from "@/store/auth.store";
 
 // Limpa chaves legadas do localStorage que causavam conflito com o Zustand
 function limparStorageLegado() {
@@ -17,15 +18,17 @@ function limparStorageLegado() {
 
 function PushPermissionManager({ children }: { children: React.ReactNode }) {
   const { permissao, pedirPermissao } = usePushNotifications();
+  const token = useAuthStore(state => state.token);
 
   useEffect(() => {
-    if (permissao === "default") {
+    // Só pede permissão se o usuário estiver logado
+    if (permissao === "default" && token) {
       const timer = setTimeout(() => {
         pedirPermissao();
       }, 4000);
       return () => clearTimeout(timer);
     }
-  }, [permissao, pedirPermissao]);
+  }, [permissao, pedirPermissao, token]);
 
   return <>{children}</>;
 }
