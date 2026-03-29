@@ -8,7 +8,7 @@ const JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET!
 // ─── HELPERS ──────────────────────────────────────────────────────────────
 
 function gerarAccessToken(userId: string, empresaId: string, perfil: string) {
-  return jwt.sign({ userId, empresaId, perfil }, JWT_SECRET, { expiresIn: '8h' })
+  return jwt.sign({ userId, empresaId, perfil }, JWT_SECRET, { expiresIn: '7d' })
 }
 
 function gerarRefreshToken(userId: string) {
