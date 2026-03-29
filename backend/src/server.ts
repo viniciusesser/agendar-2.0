@@ -20,9 +20,20 @@ const app = Fastify({ logger: true })
 
 // ─── CORS ─────────────────────────────────────────────────────────────────
 app.register(cors, {
-  origin: ['http://localhost:3000', 'https://agendar-2-0.vercel.app'],
+  origin: (origin, cb) => {
+    const permitidos = ['http://localhost:3000', 'https://agendar-2-0.vercel.app']
+    if (!origin || permitidos.includes(origin)) {
+      cb(null, true)
+    } else {
+      cb(new Error('Origem não permitida pelo CORS'), false)
+    }
+  },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'x-master-key'],
+  exposedHeaders: ['Content-Type'],
+  preflight: true,
+  strictPreflight: false,
 })
 
 // ─── COOKIES (necessário para refresh token httpOnly) ─────────────────────
