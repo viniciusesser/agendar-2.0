@@ -5,41 +5,28 @@ export async function listarAgendamentosDia(empresaId: string, data: string) {
   const inicio = new Date(`${data}T00:00:00.000Z`)
   const fim = new Date(`${data}T23:59:59.999Z`)
 
-  // 1. Busca os Agendamentos Normais
   const agendamentos = await prisma.ag_agendamentos.findMany({
     where: {
       empresa_id: empresaId,
       deleted_at: null,
       data_hora_inicio: { gte: inicio, lte: fim },
     },
-    include: {
-      cliente: true,
-      profissional: true,
-      servico: true,
-    },
+    include: { cliente: true, profissional: true, servico: true },
     orderBy: { data_hora_inicio: 'asc' },
   })
 
-  // 2. Busca os Bloqueios desse mesmo dia
   const bloqueios = await prisma.ag_bloqueios.findMany({
     where: {
       empresa_id: empresaId,
-      // Pega qualquer bloqueio que toque no dia de hoje
       AND: [
         { data_hora_inicio: { lte: fim } },
         { data_hora_fim: { gte: inicio } }
       ]
     },
-    include: {
-      profissional: true
-    }
+    include: { profissional: true }
   })
 
-  // Retornamos os dois agrupados para o Frontend processar e desenhar a tela
-  return {
-    agendamentos,
-    bloqueios
-  }
+  return { agendamentos, bloqueios }
 }
 
 // --- CRIAÇÃO ---
@@ -68,7 +55,7 @@ export async function criarAgendamento(empresaId: string, dados: {
   const fim = new Date(inicio.getTime() + duracao * 60 * 1000)
 
   const agora = new Date()
-  agora.setMinutes(agora.getMinutes() - 5) 
+  agora.setMinutes(agora.getMinutes() - 5)
   if (inicio < agora) throw new Error('HORARIO_PASSADO')
 
   const bloqueio = await prisma.ag_bloqueios.findFirst({
@@ -105,31 +92,25 @@ export async function criarAgendamento(empresaId: string, dados: {
 
 // --- ATUALIZAÇÃO DE STATUS ---
 export async function atualizarStatusSimples(empresaId: string, agendamentoId: string, status: string) {
-  console.log(`[SERVICE] Solicitando mudança para: ${status} no agendamento ${agendamentoId}`);
-
-  const statusPermitidos = ['agendado', 'confirmado', 'atendimento', 'concluido', 'falta', 'cancelado'];
-  
-  if (!statusPermitidos.includes(status)) {
-    console.error(`[SERVICE] Status inválido recebido: ${status}`);
-    throw new Error('STATUS_INVALIDO');
-  }
+  const statusPermitidos = ['agendado', 'confirmado', 'atendimento', 'concluido', 'falta', 'cancelado']
+  if (!statusPermitidos.includes(status)) throw new Error('STATUS_INVALIDO')
 
   const agendamento = await prisma.ag_agendamentos.findFirst({
     where: { id: agendamentoId, empresa_id: empresaId, deleted_at: null },
-  });
-
-  if (!agendamento) throw new Error('NAO_ENCONTRADO');
+  })
+  if (!agendamento) throw new Error('NAO_ENCONTRADO')
 
   return prisma.ag_agendamentos.update({
     where: { id: agendamentoId },
     data: { status },
-  });
+  })
 }
 
 // --- CHECKOUT E FINANCEIRO ---
 export async function finalizarCheckout(empresaId: string, agendamentoId: string, dados: {
-  forma_pagamento: string;
-  produtos_comanda: { id: string; quantidade: number; preco_venda: number }[];
+  forma_pagamento: string
+  profissional_id?: string  // ← NOVO: troca de profissional no checkout
+  produtos_comanda: { id: string; quantidade: number; preco_venda: number }[]
 }) {
   const agendamento = await prisma.ag_agendamentos.findFirst({
     where: { id: agendamentoId, empresa_id: empresaId, deleted_at: null },
@@ -139,22 +120,42 @@ export async function finalizarCheckout(empresaId: string, agendamentoId: string
   if (!agendamento) throw new Error('NAO_ENCONTRADO')
   if (agendamento.status === 'finalizado') throw new Error('JA_FINALIZADO')
 
-  const valorServico = Number(agendamento.valor);
-  const valorProdutos = dados.produtos_comanda.reduce((acc, p) => acc + (p.preco_venda * p.quantidade), 0);
-  const valorTotal = valorServico + valorProdutos;
+  // Valida e resolve o profissional final
+  const profissionalId = dados.profissional_id || agendamento.profissional_id
 
-  const isFiado = dados.forma_pagamento === 'fiado';
-  const statusFinanceiro = isFiado ? 'pendente' : 'pago';
+  if (dados.profissional_id && dados.profissional_id !== agendamento.profissional_id) {
+    const profissionalNovo = await prisma.ag_profissionais.findFirst({
+      where: { id: dados.profissional_id, empresa_id: empresaId, deleted_at: null }
+    })
+    if (!profissionalNovo) throw new Error('PROFISSIONAL_NAO_ENCONTRADO')
+  }
+
+  // Recalcula comissão com base no profissional final
+  const profissional = await prisma.ag_profissionais.findUnique({
+    where: { id: profissionalId }
+  })
+  const comissao_pct = Number(profissional?.comissao_pct ?? agendamento.comissao_pct)
+  const valorServico = Number(agendamento.valor)
+  const comissao_valor = valorServico * (comissao_pct / 100)
+
+  const valorProdutos = dados.produtos_comanda.reduce((acc, p) => acc + (p.preco_venda * p.quantidade), 0)
+  const valorTotal = valorServico + valorProdutos
+
+  const isFiado = dados.forma_pagamento === 'fiado'
+  const statusFinanceiro = isFiado ? 'pendente' : 'pago'
 
   return await prisma.$transaction(async (tx) => {
-    
-    // 1. Finaliza agendamento
+
+    // 1. Finaliza agendamento — atualiza profissional e comissão se houve troca
     const agendamentoAtualizado = await tx.ag_agendamentos.update({
       where: { id: agendamentoId },
       data: {
         status: 'finalizado',
         finalizado_em: new Date(),
-        forma_pagamento: dados.forma_pagamento
+        forma_pagamento: dados.forma_pagamento,
+        profissional_id: profissionalId,  // ← persiste o profissional final
+        comissao_pct,
+        comissao_valor,
       }
     })
 
@@ -175,7 +176,7 @@ export async function finalizarCheckout(empresaId: string, agendamentoId: string
         tipo: 'entrada',
         origem: 'servico',
         valor: valorServico,
-        descricao: `Serviço: ${agendamento.servico.nome}`,
+        descricao: `Servico: ${agendamento.servico.nome}`,
         forma_pagamento: dados.forma_pagamento,
         status: statusFinanceiro,
         responsavel: 'caixa'
@@ -185,9 +186,9 @@ export async function finalizarCheckout(empresaId: string, agendamentoId: string
     // 4. Financeiro e Estoque dos Produtos
     for (const item of dados.produtos_comanda) {
       const produto = await tx.ag_estoque.findUnique({ where: { id: item.id } })
-      
+
       if (!produto || Number(produto.quantidade) < item.quantidade) {
-        throw new Error(`ESTOQUE_INSUFICIENTE`);
+        throw new Error('ESTOQUE_INSUFICIENTE')
       }
 
       await tx.ag_estoque.update({
@@ -202,7 +203,7 @@ export async function finalizarCheckout(empresaId: string, agendamentoId: string
           agendamento_id: agendamento.id,
           tipo: 'saida',
           quantidade: item.quantidade,
-          motivo: `Venda na Comanda`
+          motivo: 'Venda na Comanda'
         }
       })
 
@@ -226,7 +227,7 @@ export async function finalizarCheckout(empresaId: string, agendamentoId: string
   })
 }
 
-// --- CANCELAMENTO E GERENCIAMENTO DE BLOQUEIO ---
+// --- CANCELAMENTO ---
 export async function cancelarAgendamento(empresaId: string, agendamentoId: string) {
   const agendamento = await prisma.ag_agendamentos.findFirst({
     where: { id: agendamentoId, empresa_id: empresaId, deleted_at: null },
@@ -241,6 +242,7 @@ export async function cancelarAgendamento(empresaId: string, agendamentoId: stri
   })
 }
 
+// --- BLOQUEIOS ---
 export async function criarBloqueio(empresaId: string, dados: {
   profissional_id: string
   data_hora_inicio: string
@@ -267,11 +269,7 @@ export async function excluirBloqueio(empresaId: string, bloqueioId: string) {
   const bloqueio = await prisma.ag_bloqueios.findFirst({
     where: { id: bloqueioId, empresa_id: empresaId }
   })
-
   if (!bloqueio) throw new Error('BLOQUEIO_NAO_ENCONTRADO')
 
-  // Ao invés de soft delete, bloqueios podem ser deletados fisicamente para não poluir o banco
-  return prisma.ag_bloqueios.delete({
-    where: { id: bloqueioId }
-  })
+  return prisma.ag_bloqueios.delete({ where: { id: bloqueioId } })
 }
