@@ -179,6 +179,12 @@ export default function ServicosPage() {
                 <option value="60">1 hora</option>
                 <option value="90">1h 30min</option>
                 <option value="120">2 horas</option>
+                <option value="150">2h 30min</option>
+                <option value="180">3 horas</option>
+                <option value="210">3h 30min</option>
+                <option value="240">4 horas</option>
+                <option value="270">4h 30min</option>
+                <option value="300">5 horas</option>
               </select>
             </div>
             <Input 
