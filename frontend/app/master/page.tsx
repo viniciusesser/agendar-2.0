@@ -6,7 +6,7 @@ import {
   Loader2, CheckCircle2, XCircle, Wallet,
   Users, Calendar, ShieldCheck, ShieldOff,
   CreditCard, ChevronDown, ChevronUp,
-  Mail, Crown, UserCircle2
+  Mail, Crown, UserCircle2, Lock
 } from "lucide-react";
 import { useState } from "react";
 import { Card } from "@/components/ui/Card";
@@ -14,7 +14,7 @@ import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import {
-  buscarSaloesMaster, atualizarSalao,
+  buscarSaloesMaster, atualizarSalao, atualizarUsuario,
   type Salao, type UsuarioSalao
 } from "@/services/master.service";
 
@@ -46,7 +46,7 @@ function TelaSenha({ onAutenticado }: { onAutenticado: () => void }) {
         <Card className="p-8 space-y-6">
           <div className="flex flex-col items-center gap-3 text-center">
             <div className="w-14 h-14 bg-primary-50 rounded-2xl flex items-center justify-center">
-              <Wallet size={26} strokeWidth={2.5} className="text-primary-action" />
+              <Lock size={26} strokeWidth={2.5} className="text-primary-action" />
             </div>
             <div>
               <h1 className="text-title font-bold text-primary-action">Área Restrita</h1>
@@ -67,7 +67,12 @@ function TelaSenha({ onAutenticado }: { onAutenticado: () => void }) {
 }
 
 // ─── LINHA DE USUÁRIO ─────────────────────────────────────────────────────
-function LinhaUsuario({ usuario }: { usuario: UsuarioSalao }) {
+interface LinhaUsuarioProps {
+  usuario: UsuarioSalao
+  onToggle: (id: string, ativo: boolean) => void
+}
+
+function LinhaUsuario({ usuario, onToggle }: LinhaUsuarioProps) {
   const isDono = usuario.perfil === 'dono' || usuario.perfil === 'admin'
 
   return (
@@ -80,30 +85,46 @@ function LinhaUsuario({ usuario }: { usuario: UsuarioSalao }) {
           }
         </div>
         <div className="min-w-0">
-          <p className="text-small font-bold text-text-primary truncate">{usuario.nome}</p>
+          <p className={`text-small font-bold leading-tight truncate ${!usuario.ativo ? 'text-text-muted line-through' : 'text-text-primary'}`}>
+            {usuario.nome}
+          </p>
           <p className="text-micro text-text-secondary flex items-center gap-1 truncate">
             <Mail size={10} /> {usuario.email}
           </p>
         </div>
       </div>
       <div className="flex items-center gap-2 shrink-0 ml-3">
-        <Badge variant={isDono ? 'default' : 'default'} className="text-[10px] uppercase">
+        <Badge variant="default" className="text-[10px] uppercase hidden md:inline-flex">
           {usuario.perfil}
         </Badge>
-        {usuario.ativo
-          ? <span className="text-[10px] font-bold text-status-success uppercase">Ativo</span>
-          : <span className="text-[10px] font-bold text-status-error uppercase">Inativo</span>
-        }
         <span className="text-micro text-text-muted hidden md:block">
           {new Date(usuario.criado_em).toLocaleDateString('pt-BR')}
         </span>
+        <button
+          onClick={() => onToggle(usuario.id, !usuario.ativo)}
+          className={`flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-black uppercase transition-all ${
+            usuario.ativo
+              ? 'bg-status-error/10 text-status-error hover:bg-status-error hover:text-white'
+              : 'bg-status-success/10 text-status-success hover:bg-status-success hover:text-white'
+          }`}
+        >
+          {usuario.ativo
+            ? <><ShieldOff size={11} /> Bloquear</>
+            : <><ShieldCheck size={11} /> Ativar</>
+          }
+        </button>
       </div>
     </div>
   )
 }
 
 // ─── MODAL DE EDIÇÃO DE PLANO ─────────────────────────────────────────────
-function ModalEdicao({ salao, onClose }: { salao: Salao; onClose: () => void }) {
+interface ModalEdicaoProps {
+  salao: Salao
+  onClose: () => void
+}
+
+function ModalEdicao({ salao, onClose }: ModalEdicaoProps) {
   const queryClient = useQueryClient()
   const [plano, setPlano] = useState(salao.plano)
   const [validade, setValidade] = useState(
@@ -155,13 +176,24 @@ function PainelMaster() {
     queryFn: buscarSaloesMaster,
   })
 
-  const mutationStatus = useMutation({
-    mutationFn: ({ id, ativo }: { id: string; ativo: boolean }) => atualizarSalao(id, { ativo }),
+  const mutationSalao = useMutation({
+    mutationFn: ({ id, ativo }: { id: string; ativo: boolean }) =>
+      atualizarSalao(id, { ativo }),
     onSuccess: (_, { ativo }) => {
       queryClient.invalidateQueries({ queryKey: ['master-saloes'] })
       toast.success(ativo ? 'Acesso liberado!' : 'Acesso bloqueado.')
     },
     onError: () => toast.error('Erro ao atualizar status.'),
+  })
+
+  const mutationUsuario = useMutation({
+    mutationFn: ({ id, ativo }: { id: string; ativo: boolean }) =>
+      atualizarUsuario(id, ativo),
+    onSuccess: (_, { ativo }) => {
+      queryClient.invalidateQueries({ queryKey: ['master-saloes'] })
+      toast.success(ativo ? 'Usuário reativado!' : 'Usuário bloqueado.')
+    },
+    onError: () => toast.error('Erro ao atualizar usuário.'),
   })
 
   const formatarMoeda = (v: number) =>
@@ -239,7 +271,6 @@ function PainelMaster() {
 
                   return (
                     <>
-                      {/* LINHA DO SALÃO */}
                       <tr key={salao.id}
                         className={`hover:bg-neutral-50 transition-colors border-b border-border-default ${aberto ? 'bg-primary-50/30' : ''}`}>
 
@@ -250,7 +281,7 @@ function PainelMaster() {
 
                         <td className="p-4">
                           <span className="flex items-center gap-1 text-micro text-text-secondary font-bold">
-                            <Users size={12} /> {salao._count.usuarios} usuários
+                            <Users size={12} /> {salao._count.usuarios} usuários ativos
                           </span>
                           <span className="flex items-center gap-1 text-micro text-text-secondary font-bold mt-0.5">
                             <Calendar size={12} /> {salao._count.agendamentos} agend.
@@ -280,19 +311,14 @@ function PainelMaster() {
 
                         <td className="p-4">
                           <div className="flex items-center justify-end gap-2">
-                            {/* EXPANDIR USUÁRIOS */}
                             <button
                               onClick={() => setExpandido(aberto ? null : salao.id)}
                               className="p-2 rounded-lg text-text-secondary hover:text-primary-action hover:bg-primary-50 transition-all"
                               title="Ver usuários"
                             >
-                              {aberto
-                                ? <ChevronUp size={16} strokeWidth={2.5} />
-                                : <ChevronDown size={16} strokeWidth={2.5} />
-                              }
+                              {aberto ? <ChevronUp size={16} strokeWidth={2.5} /> : <ChevronDown size={16} strokeWidth={2.5} />}
                             </button>
 
-                            {/* EDITAR PLANO */}
                             <button
                               onClick={() => setSalaoEditando(salao)}
                               className="p-2 rounded-lg text-text-secondary hover:text-primary-action hover:bg-primary-50 transition-all"
@@ -301,11 +327,11 @@ function PainelMaster() {
                               <CreditCard size={16} strokeWidth={2.5} />
                             </button>
 
-                            {/* BLOQUEAR / ATIVAR */}
                             <button
                               onClick={() => {
-                                if (window.confirm(`Deseja ${salao.ativo ? 'bloquear' : 'ativar'} "${salao.nome}"?`)) {
-                                  mutationStatus.mutate({ id: salao.id, ativo: !salao.ativo })
+                                const acao = salao.ativo ? 'bloquear' : 'ativar'
+                                if (window.confirm(`Deseja ${acao} o acesso de "${salao.nome}"?`)) {
+                                  mutationSalao.mutate({ id: salao.id, ativo: !salao.ativo })
                                 }
                               }}
                               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-micro font-black uppercase transition-all ${
@@ -320,11 +346,11 @@ function PainelMaster() {
                         </td>
                       </tr>
 
-                      {/* LINHA EXPANDIDA — USUÁRIOS DO SALÃO */}
+                      {/* LINHA EXPANDIDA — USUÁRIOS */}
                       {aberto && (
                         <tr key={`${salao.id}-usuarios`}>
                           <td colSpan={6} className="p-0 bg-neutral-50/50 border-b border-border-default">
-                            <div className="px-4 pt-2 pb-1">
+                            <div className="px-4 pt-3 pb-1">
                               <p className="text-micro font-black text-text-secondary uppercase tracking-widest mb-1">
                                 Usuários do salão
                               </p>
@@ -333,7 +359,18 @@ function PainelMaster() {
                               <p className="px-4 pb-3 text-small text-text-muted italic">Nenhum usuário cadastrado.</p>
                             ) : (
                               <div className="divide-y divide-border-default/30">
-                                {salao.usuarios.map(u => <LinhaUsuario key={u.id} usuario={u} />)}
+                                {salao.usuarios.map((u) => (
+                                  <LinhaUsuario
+                                    key={u.id}
+                                    usuario={u}
+                                    onToggle={(id, ativo) => {
+                                      const acao = ativo ? 'reativar' : 'bloquear'
+                                      if (window.confirm(`Deseja ${acao} o usuário "${u.nome}"?`)) {
+                                        mutationUsuario.mutate({ id, ativo })
+                                      }
+                                    }}
+                                  />
+                                ))}
                               </div>
                             )}
                           </td>

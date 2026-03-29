@@ -18,8 +18,7 @@ export default function LoginPage() {
   const [erro, setErro] = useState('')
   const [carregando, setCarregando] = useState(false)
 
-  // --- GUARDA DE ROTA ---
-  // Se já tiver sessão ativa, redireciona sem mostrar o formulário.
+  // Guarda de rota — se já tiver sessão ativa, redireciona direto
   useEffect(() => {
     if (token) {
       router.replace('/agenda')
@@ -34,13 +33,11 @@ export default function LoginPage() {
     try {
       const dados = await login(email, senha)
 
-      // ✅ UMA ÚNICA linha de storage. O Zustand persist cuida do resto.
+      // ✅ Uma única linha. O Zustand persist cuida do storage.
       // Sem localStorage.clear(), sem localStorage.setItem() manuais.
       setAuth(dados.token, dados.usuario, dados.empresa)
 
-      // replace() apaga o /login do histórico — o botão "voltar" não traz de volta.
       router.replace('/agenda')
-
     } catch (err: any) {
       console.error("Erro no login:", err)
       const msg = err.response?.data?.error?.message ?? 'E-mail ou senha incorretos.'
@@ -58,7 +55,6 @@ export default function LoginPage() {
 
       <div className="w-full max-w-[400px] animate-in fade-in zoom-in duration-300">
 
-        {/* LOGO */}
         <div className="text-center mb-8 md:mb-10 flex flex-col items-center">
           <Image
             src="/logo.png"
@@ -116,7 +112,7 @@ export default function LoginPage() {
 
         <p className="text-center mt-8 text-body text-text-secondary font-medium">
           Ainda não faz parte?{' '}
-          <a href="/cadastro" className="text-primary-action font-bold hover:underline">
+          <a href="/registro" className="text-primary-action font-bold hover:underline">
             Crie sua conta
           </a>
         </p>

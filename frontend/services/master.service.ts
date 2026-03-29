@@ -21,7 +21,7 @@ export interface Salao {
   criado_em: string
   usuarios: UsuarioSalao[]
   _count: {
-    usuarios: number
+    usuarios: number   // apenas ativos
     agendamentos: number
   }
 }
@@ -39,4 +39,11 @@ export async function atualizarSalao(
     headers: masterHeaders,
   })
   return data.data
+}
+
+export async function atualizarUsuario(
+  id: string,
+  ativo: boolean
+): Promise<void> {
+  await api.patch(`/master/usuarios/${id}`, { ativo }, { headers: masterHeaders })
 }
