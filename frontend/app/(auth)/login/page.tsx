@@ -17,13 +17,19 @@ export default function LoginPage() {
   const [senha, setSenha] = useState('')
   const [erro, setErro] = useState('')
   const [carregando, setCarregando] = useState(false)
+  const [hidratado, setHidratado] = useState(false)
 
-  // Guarda de rota — se já tiver sessão ativa, redireciona direto
   useEffect(() => {
-    if (token) {
+    // Marca que o Zustand já hidratou do localStorage
+    setHidratado(true)
+  }, [])
+
+  useEffect(() => {
+    // Só redireciona depois que o estado foi hidratado
+    if (hidratado && token) {
       router.replace('/agenda')
     }
-  }, [token, router])
+  }, [hidratado, token, router])
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault()
@@ -32,11 +38,7 @@ export default function LoginPage() {
 
     try {
       const dados = await login(email, senha)
-
-      // ✅ Uma única linha. O Zustand persist cuida do storage.
-      // Sem localStorage.clear(), sem localStorage.setItem() manuais.
       setAuth(dados.token, dados.usuario, dados.empresa)
-
       router.replace('/agenda')
     } catch (err: any) {
       console.error("Erro no login:", err)
@@ -47,7 +49,9 @@ export default function LoginPage() {
     }
   }
 
-  // Evita flash da tela de login enquanto o guard redireciona
+  // Aguarda a hidratação antes de renderizar qualquer coisa
+  // Isso evita o piscar causado pelo estado inicial null do Zustand
+  if (!hidratado) return null
   if (token) return null
 
   return (
